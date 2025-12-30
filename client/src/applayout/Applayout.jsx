@@ -16,73 +16,13 @@ import CardDetailView from "../pages/admin/CardDetailView";
 import FieldMetadataManager from "../pages/admin/FieldMetadataManager";
 import UserManagement from '../pages/admin/UserManagement';
 
-//faculty Pages
+// Faculty Pages
 import FacultyCardGroups from '../pages/faculty/FacultyCardGroups';
 import FacultyCardGroupView from '../pages/faculty/FacultyCardGroupView';
 import FacultyCardContent from '../pages/faculty/FacultyCardContent';
 
 // Protected Route Component
 import PrivateRoute from "../components/protectedroutes/ProtectedRoutes";
-
-// Faculty Dashboard
-const FacultyDashboard = () => {
-  const user = JSON.parse(localStorage.getItem('user') || 'null');
-
-  return (
-    <div className="min-h-screen bg-gray-50 p-6">
-      <div className="w-full">
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8">
-          <div className="mb-6">
-            <h1 className="text-3xl font-bold text-gray-900">Faculty Dashboard</h1>
-            <p className="text-gray-600 mt-1">Welcome back, {user?.username || 'Faculty Member'}!</p>
-          </div>
-
-          <div className="border-t border-gray-200 pt-6">
-            <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
-              <p className="text-green-800 font-medium">✓ Faculty Portal Access</p>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// Admin Dashboard
-const AdminDashboard = () => {
-  const user = JSON.parse(localStorage.getItem('user') || 'null');
-
-  return (
-    <div className="min-h-screen bg-gray-50 p-6">
-      <div className="w-full">
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8">
-          <div className="mb-6">
-            <h1 className="text-3xl font-bold text-gray-900">Admin Dashboard</h1>
-            <p className="text-gray-600 mt-1">Welcome back, {user?.username || 'Administrator'}!</p>
-          </div>
-
-          <div className="border-t border-gray-200 pt-6">
-            <div className="bg-purple-50 border border-purple-200 rounded-lg p-4 mb-6">
-              <p className="text-purple-800 font-medium">🛡️ Admin Portal Access</p>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// Placeholder components
-const PlaceholderPage = ({ title }) => (
-  <div className="min-h-screen bg-gray-50 p-6">
-    <div className="w-full">
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8">
-        <h1 className="text-2xl font-bold text-gray-900">{title}</h1>
-        <p className="text-gray-600 mt-2">This page is under construction.</p>
-      </div>
-    </div>
-  </div>
-);
 
 function AppLayout() {
   const location = useLocation();
@@ -114,40 +54,26 @@ function AppLayout() {
 
             {/* Protected Routes */}
             <Route element={<PrivateRoute />}>
-              {/* Root redirect based on role */}
+              {/* Root redirect based on role - Direct to daily cards */}
               <Route path="/" element={
-                user?.role === 'admin' ? <Navigate to="/admin/dashboard" /> : <Navigate to="/faculty/dashboard" />
+                user?.role === 'admin' ? <Navigate to="/admin/daily-cards" /> : <Navigate to="/faculty/daily-cards" />
               } />
 
-              {/* Faculty Routes */}
+              {/* Faculty Routes - ACTIVE */}
               <Route path="/faculty/daily-cards" element={<FacultyCardGroups />} />
               <Route path="/faculty/daily-cards/:groupId" element={<FacultyCardGroupView />} />
               <Route path="/faculty/daily-cards/:groupId/card/:cardId" element={<FacultyCardContent />} />
-              <Route path="/faculty/dashboard" element={<FacultyDashboard />} />
-              <Route path="/faculty/articles" element={<PlaceholderPage title="My Articles" />} />
-              <Route path="/faculty/submit-news" element={<PlaceholderPage title="Submit News" />} />
-              <Route path="/faculty/calendar" element={<PlaceholderPage title="Calendar" />} />
-              <Route path="/faculty/notifications" element={<PlaceholderPage title="Notifications" />} />
-              <Route path="/faculty/settings" element={<PlaceholderPage title="Settings" />} />
 
-              {/* Admin Routes */}
-              <Route path="/admin/dashboard" element={<AdminDashboard />} />
+              {/* Admin Routes - ACTIVE */}
               <Route path="/admin/daily-cards" element={<DailyCards />} />
               <Route path="/admin/daily-cards/:groupId" element={<CardGroupView />} />
               <Route path="/admin/daily-cards/:groupId/card/:cardId" element={<CardDetailView />} />
               <Route path="/admin/field-metadata" element={<FieldMetadataManager />} />
               <Route path="/admin/users" element={<UserManagement />} />
-              <Route path="/admin/news" element={<PlaceholderPage title="All News" />} />
-              <Route path="/admin/articles" element={<PlaceholderPage title="All Articles" />} />
-              <Route path="/admin/users" element={<PlaceholderPage title="User Management" />} />
-              <Route path="/admin/approvals" element={<PlaceholderPage title="Pending Approvals" />} />
-              <Route path="/admin/analytics" element={<PlaceholderPage title="Analytics" />} />
-              <Route path="/admin/notifications" element={<PlaceholderPage title="Notifications" />} />
-              <Route path="/admin/settings" element={<PlaceholderPage title="Admin Settings" />} />
 
               {/* Legacy routes redirect based on role */}
               <Route path="/dashboard" element={
-                user?.role === 'admin' ? <Navigate to="/admin/dashboard" replace /> : <Navigate to="/faculty/dashboard" replace />
+                user?.role === 'admin' ? <Navigate to="/admin/daily-cards" replace /> : <Navigate to="/faculty/daily-cards" replace />
               } />
             </Route>
 

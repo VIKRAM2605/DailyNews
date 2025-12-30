@@ -20,12 +20,18 @@ import {
   getAllGenerations,
   uploadCardImages,
 } from '../controllers/dailyCard/cardGroupController.js';
-// ✅ ADD: Import authorizeRoles
+// ✅ ADD: Import permission controllers
+import {
+  grantCardAccess,
+  revokeCardAccess,
+  getCardPermissions,
+  checkCardAccess,
+  getAvailableUsers 
+} from '../controllers/cardPermission/cardPermissionsController.js';
 import { authMiddleware, authorizeRoles } from '../middlewares/authMiddleware.js';
 
 const router = express.Router();
 
-// ✅ ADD: Protect all routes with admin role
 router.use(authMiddleware);
 router.use(authorizeRoles(['admin']));
 
@@ -36,44 +42,46 @@ router.get('/today', getTodayCardGroup);
 router.post('/create', createTodayCardGroup);
 router.get('/all', getAllCardGroups);
 
-// ⚠️ IMPORTANT: Specific routes MUST come before dynamic routes
 router.get('/group/:groupId', getGroupDetails);
 router.get('/group/:groupId/cards', getGroupCards);
 
 // ============================================
 // Card Routes (CRUD)
 // ============================================
-// ⚠️ Specific routes first, then dynamic :cardId routes
 router.get('/field-metadata', getFieldMetadata);
 
-// Card CRUD operations
 router.post('/group/:groupId/cards', createCardInGroup);
 router.get('/cards/:cardId', getCard);
 router.put('/cards/:cardId', updateCard);
 router.delete('/cards/:cardId', deleteCard);
 
 // ============================================
+// ✅ Card Permission Routes
+// ============================================
+router.post('/cards/:cardId/grant-access', grantCardAccess);
+router.delete('/cards/:cardId/revoke-access/:userId', revokeCardAccess);
+router.get('/cards/:cardId/permissions', getCardPermissions);
+router.get('/cards/:cardId/check-access', checkCardAccess);
+router.get('/cards/:cardId/available-users', getAvailableUsers);
+
+
+// ============================================
 // Generation Routes
 // ============================================
-// ⚠️ CRITICAL: Specific nested routes MUST come before generic ones
-// This route handles updates WITH image uploads
 router.put(
   '/cards/:cardId/generations/:generationId/with-images', 
   uploadCardImages, 
   updateGenerationWithImages
 );
 
-// This route handles updates WITHOUT image uploads
 router.put(
   '/cards/:cardId/generations/:generationId', 
   updateGeneration
 );
 
-// Other generation routes
 router.get('/cards/:cardId/current-generation', getCurrentGeneration);
 router.get('/cards/:cardId/generations', getAllGenerations);
 
-// Generate and regenerate routes
 router.post('/cards/:cardId/generate', uploadCardImages, generateContent);
 router.post('/cards/:cardId/regenerate', regenerateContent);
 

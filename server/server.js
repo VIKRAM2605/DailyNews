@@ -7,6 +7,8 @@ import cron from 'node-cron';
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import http from 'http';
+import { Server } from 'socket.io';
 
 import loginRoutes from './routes/loginRoute.js';
 import dailyCardRoutes from './routes/dailyCardRoutes.js';
@@ -53,18 +55,101 @@ app.use(
 app.use(passport.initialize());
 app.use(passport.session());
 
+// ✅ Create HTTP server and Socket.IO
+const httpServer = http.createServer(app);
+const io = new Server(httpServer, {
+  cors: {
+    origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+    methods: ['GET', 'POST'],
+    credentials: true
+  },
+  transports: ['websocket', 'polling']
+});
+
+// ✅ Socket.IO connection handling
+io.on('connection', (socket) => {
+  console.log('✅ User connected:', socket.id);
+
+  // ✅ Handle joining card room
+  socket.on('join-card', ({ cardId, userId, userName }) => {
+    const roomName = `card-${cardId}`;
+    socket.join(roomName);
+    
+    console.log(`👤 ${userName} (${userId}) joined ${roomName}`);
+    
+    // ✅ Get current room size
+    const room = io.sockets.adapter.rooms.get(roomName);
+    const roomSize = room ? room.size : 1;
+    
+    console.log(`📊 Room ${roomName} now has ${roomSize} users`);
+    
+    // ✅ Broadcast count to ALL users in room (including the joiner)
+    io.to(roomName).emit('room-user-count', {
+      count: roomSize
+    });
+    
+    // ✅ Notify others (excluding joiner) about new user
+    socket.to(roomName).emit('user-joined', {
+      userId,
+      userName,
+      count: roomSize
+    });
+  });
+
+  // ✅ Handle field updates
+  socket.on('field-updated', ({ cardId, fieldName, value, userId, userName }) => {
+    const roomName = `card-${cardId}`;
+    console.log(`📝 ${userName} updated ${fieldName} in ${roomName}`);
+    
+    // Broadcast to others in the same room (not including sender)
+    socket.to(roomName).emit('field-updated', {
+      fieldName,
+      value,
+      userId,
+      userName
+    });
+  });
+
+  // ✅ Handle disconnection
+  socket.on('disconnect', () => {
+    console.log('❌ User disconnected:', socket.id);
+    
+    // Get all rooms this socket was in (filter out default room which is socket.id)
+    const rooms = Array.from(socket.rooms).filter(room => room !== socket.id && room.startsWith('card-'));
+    
+    rooms.forEach(roomName => {
+      const room = io.sockets.adapter.rooms.get(roomName);
+      const roomSize = room ? room.size : 0;
+      
+      console.log(`📊 Room ${roomName} now has ${roomSize} users after disconnect`);
+      
+      // ✅ Update count for remaining users
+      io.to(roomName).emit('room-user-count', {
+        count: roomSize
+      });
+      
+      // ✅ Notify others user left
+      io.to(roomName).emit('user-left', {
+        count: roomSize
+      });
+    });
+  });
+});
+
 // Routes
 app.use('/api/auth', loginRoutes);
 app.use('/api/daily-card', dailyCardRoutes);
 app.use('/api/field-metadata', fieldMetadataRoutes);
-app.use('/api/users', userRoutes);  // ✅ Add this
+app.use('/api/users', userRoutes);
 app.use('/api/faculty/daily-card', facultyDailyCardDetailsCreationRoutes);
+
 // Health check
 app.get('/health', (req, res) => {
   res.json({ 
     status: 'OK', 
     timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV 
+    environment: process.env.NODE_ENV,
+    socketConnections: io.engine.clientsCount
   });
 });
 
@@ -91,10 +176,10 @@ app.use((err, req, res, next) => {
 });
 
 const PORT = process.env.PORT || 8000;
-app.listen(PORT, () => {
+httpServer.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
-  console.log(`📍 Environment: ${process.env.NODE_ENV}`);
-  console.log(`🌐 CORS enabled for: ${process.env.FRONTEND_URL}`);
-  console.log(`🔐 Google OAuth configured`);
-  console.log(`⏰ Cron job scheduled: Daily at 00:00 IST`);
+  console.log(`🔌 WebSocket server ready on ws://localhost:${PORT}`);
+  console.log(`📡 Socket.IO path: /socket.io/`);
 });
+
+export { io };
