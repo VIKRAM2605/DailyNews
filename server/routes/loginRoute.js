@@ -30,19 +30,23 @@ router.get(
 router.get(
   '/google/callback',
   passport.authenticate('google', { 
-    failureRedirect: `${process.env.CLIENT_URL || 'http://localhost:5173'}/login?error=google_auth_failed`,
+    failureRedirect: `${process.env.FRONTEND_URL}/login?error=google_auth_failed`,
     session: false 
   }),
   async (req, res) => {
     try {
+      console.log('🔐 Google OAuth callback triggered');
+      console.log('👤 User from Google:', req.user);
+
       // Check if user is approved
       if (!req.user.has_approved) {
+        console.log('⏳ User not approved');
         return res.redirect(
-          `${process.env.CLIENT_URL || 'http://localhost:5173'}/login?error=pending_approval`
+          `${process.env.FRONTEND_URL}/login?error=pending_approval`
         );
       }
 
-      // Generate JWT for Google user
+      // Generate JWT
       const token = jwt.sign(
         { 
           id: req.user.id, 
@@ -53,40 +57,34 @@ router.get(
         { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
       );
 
-      // Set cookie
-      res.cookie('token', token, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-        maxAge: parseInt(process.env.COOKIE_EXPIRES_DAYS || 7) * 24 * 60 * 60 * 1000
-      });
-
-      // Store user in localStorage via redirect with token
-      const userData = encodeURIComponent(JSON.stringify({
+      const userData = {
         id: req.user.id,
         username: req.user.name,
         email: req.user.email,
         role: req.user.role
-      }));
+      };
 
-      // Redirect to dashboard with user data
-      res.redirect(
-        `${process.env.CLIENT_URL || 'http://localhost:5173'}/auth/callback?user=${userData}`
-      );
+      console.log('✅ Token generated');
+      console.log('🎫 Token preview:', token.substring(0, 50) + '...');
+      console.log('📦 User data:', userData);
+
+      // ✅ Redirect to frontend callback with token and user
+      const userParam = encodeURIComponent(JSON.stringify(userData));
+      const redirectUrl = `${process.env.FRONTEND_URL}/auth/google/callback?token=${token}&user=${userParam}`;
+      
+      console.log('📍 Redirecting to:', redirectUrl);
+      res.redirect(redirectUrl);
+
     } catch (error) {
-      console.error('Google callback error:', error);
-      res.redirect(
-        `${process.env.CLIENT_URL || 'http://localhost:5173'}/login?error=auth_failed`
-      );
+      console.error('❌ Google callback error:', error);
+      res.redirect(`${process.env.FRONTEND_URL}/login?error=auth_failed`);
     }
   }
 );
 
 // Google OAuth failure route
 router.get('/google/failure', (req, res) => {
-  res.redirect(
-    `${process.env.CLIENT_URL || 'http://localhost:5173'}/login?error=google_auth_failed`
-  );
+  res.redirect(`${process.env.FRONTEND_URL}/login?error=google_auth_failed`);
 });
 
 export default router;

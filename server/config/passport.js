@@ -1,6 +1,6 @@
 import passport from 'passport';
 import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
-import db from '../src/utils/db.js';
+import db from '../utils/db.js';
 
 // Remove dotenv.config() from here - it should be in server.js only
 

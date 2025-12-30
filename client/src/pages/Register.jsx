@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Mail, Lock, User, Eye, EyeOff, UserPlus, AlertCircle } from 'lucide-react';
+import { Mail, Lock, User, Eye, EyeOff, UserPlus, AlertCircle, CheckCircle } from 'lucide-react';
 import api from '../utils/axios';
 
 const Register = () => {
@@ -13,6 +13,7 @@ const Register = () => {
     });
     const [showPassword, setShowPassword] = useState(false);
     const [error, setError] = useState('');
+    const [success, setSuccess] = useState(false);
     const [loading, setLoading] = useState(false);
 
     const handleChange = (e) => {
@@ -27,6 +28,7 @@ const Register = () => {
         e.preventDefault();
         setLoading(true);
         setError('');
+        setSuccess(false);
 
         if (formData.password !== formData.confirmPassword) {
             setError('Passwords do not match');
@@ -35,6 +37,8 @@ const Register = () => {
         }
 
         try {
+            console.log('📝 Attempting registration...');
+            
             const response = await api.post('/auth/register', {
                 username: formData.username,
                 email: formData.email,
@@ -42,10 +46,18 @@ const Register = () => {
             });
 
             if (response.data.success) {
-                localStorage.setItem('user', JSON.stringify(response.data.user));
-                navigate('/dashboard');
+                console.log('✅ Registration successful');
+                
+                // ✅ Show success message
+                setSuccess(true);
+                
+                // ✅ Redirect to login after 2 seconds
+                setTimeout(() => {
+                    navigate('/login');
+                }, 2000);
             }
         } catch (err) {
+            console.error('❌ Registration error:', err);
             setError(
                 err.response?.data?.error ||
                 err.response?.data?.message ||
@@ -60,25 +72,20 @@ const Register = () => {
         <div className="min-h-screen flex bg-white">
             {/* Left Side - Professional & Classic */}
             <div className="hidden lg:flex lg:w-1/2 relative">
-                {/* Background Gradient */}
-                <div className="absolute inset-0 bg-linear-to-br from-slate-900 via-blue-900 to-slate-900"></div>
+                <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900"></div>
 
-                {/* Geometric Pattern Overlay */}
                 <div className="absolute inset-0 opacity-10">
                     <div className="absolute inset-0" style={{
                         backgroundImage: `repeating-linear-gradient(45deg, transparent, transparent 35px, rgba(255,255,255,.05) 35px, rgba(255,255,255,.05) 70px)`
                     }}></div>
                 </div>
 
-                {/* Content */}
                 <div className="relative z-10 flex flex-col justify-between p-12 w-full">
-                    {/* Logo/Brand */}
                     <div>
                         <h1 className="text-4xl font-bold text-white mb-2">DailyNews</h1>
                         <div className="w-16 h-1 bg-blue-400 rounded-full"></div>
                     </div>
 
-                    {/* Center Quote */}
                     <div className="text-white flex flex-col items-center text-center">
                         <div className="w-full pl-16 flex justify-start">
                             <svg
@@ -97,7 +104,6 @@ const Register = () => {
                         </p>
                     </div>
 
-                    {/* Footer */}
                     <div className="text-slate-400 text-sm">
                         © 2025 DailyNews. All rights reserved.
                     </div>
@@ -107,7 +113,6 @@ const Register = () => {
             {/* Right Side - Register Form */}
             <div className="flex-1 flex items-center justify-center p-8 bg-gray-50">
                 <div className="w-full max-w-md">
-                    {/* Mobile Logo */}
                     <div className="lg:hidden text-center mb-8">
                         <h1 className="text-3xl font-bold text-gray-900 mb-2">DailyNews</h1>
                         <div className="w-16 h-1 bg-blue-600 mx-auto rounded-full"></div>
@@ -118,6 +123,19 @@ const Register = () => {
                             <h2 className="text-2xl font-bold text-gray-900 mb-2">Create Account</h2>
                             <p className="text-gray-600 text-sm">Please fill in your information</p>
                         </div>
+
+                        {/* ✅ Success Message */}
+                        {success && (
+                            <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg flex items-start gap-3">
+                                <CheckCircle className="w-5 h-5 text-green-600 shrink-0 mt-0.5" />
+                                <div>
+                                    <p className="text-sm font-semibold text-green-800">Registration Successful!</p>
+                                    <p className="text-xs text-green-700 mt-1">
+                                        Your account is pending admin approval. Redirecting to login...
+                                    </p>
+                                </div>
+                            </div>
+                        )}
 
                         {error && (
                             <div className="mb-6 p-4 bg-red-50 border border-red-100 rounded-lg flex items-start gap-3">
@@ -212,7 +230,7 @@ const Register = () => {
 
                             <button
                                 type="submit"
-                                disabled={loading}
+                                disabled={loading || success}
                                 className="w-full flex items-center justify-center gap-2 bg-slate-900 text-white py-2.5 px-4 rounded-lg font-medium hover:bg-slate-800 focus:ring-4 focus:ring-slate-200 transition-all disabled:opacity-50 disabled:cursor-not-allowed text-sm"
                             >
                                 {loading ? (

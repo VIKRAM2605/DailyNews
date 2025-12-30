@@ -7,6 +7,19 @@ import Header from "../components/header/Header";
 import Login from "../pages/login";
 import Register from "../pages/Register";
 import AuthCallback from "../pages/AuthCallback";
+import GoogleCallback from '../pages/GoogleCallback';
+
+// Admin Pages
+import DailyCards from "../pages/admin/DailyCards";
+import CardGroupView from "../pages/admin/CardGroupView";
+import CardDetailView from "../pages/admin/CardDetailView";
+import FieldMetadataManager from "../pages/admin/FieldMetadataManager";
+import UserManagement from '../pages/admin/UserManagement';
+
+//faculty Pages
+import FacultyCardGroups from '../pages/faculty/FacultyCardGroups';
+import FacultyCardGroupView from '../pages/faculty/FacultyCardGroupView';
+import FacultyCardContent from '../pages/faculty/FacultyCardContent';
 
 // Protected Route Component
 import PrivateRoute from "../components/protectedroutes/ProtectedRoutes";
@@ -84,12 +97,12 @@ function AppLayout() {
     <div className="h-screen flex overflow-hidden">
       {/* Sidebar */}
       {shouldShowNavigation && <Navbar />}
-      
+
       {/* Main Content Area */}
       <div className={`flex-1 flex flex-col ${shouldShowNavigation ? 'ml-16' : ''}`}>
         {/* Header */}
         {shouldShowNavigation && <Header />}
-        
+
         {/* Main Content with proper spacing */}
         <main className={`flex-1 overflow-x-hidden overflow-y-auto ${shouldShowNavigation ? 'mt-16' : ''}`}>
           <Routes>
@@ -97,6 +110,7 @@ function AppLayout() {
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
             <Route path="/auth/callback" element={<AuthCallback />} />
+            <Route path="/auth/google/callback" element={<GoogleCallback />} />
 
             {/* Protected Routes */}
             <Route element={<PrivateRoute />}>
@@ -106,6 +120,9 @@ function AppLayout() {
               } />
 
               {/* Faculty Routes */}
+              <Route path="/faculty/daily-cards" element={<FacultyCardGroups />} />
+              <Route path="/faculty/daily-cards/:groupId" element={<FacultyCardGroupView />} />
+              <Route path="/faculty/daily-cards/:groupId/card/:cardId" element={<FacultyCardContent />} />
               <Route path="/faculty/dashboard" element={<FacultyDashboard />} />
               <Route path="/faculty/articles" element={<PlaceholderPage title="My Articles" />} />
               <Route path="/faculty/submit-news" element={<PlaceholderPage title="Submit News" />} />
@@ -115,6 +132,11 @@ function AppLayout() {
 
               {/* Admin Routes */}
               <Route path="/admin/dashboard" element={<AdminDashboard />} />
+              <Route path="/admin/daily-cards" element={<DailyCards />} />
+              <Route path="/admin/daily-cards/:groupId" element={<CardGroupView />} />
+              <Route path="/admin/daily-cards/:groupId/card/:cardId" element={<CardDetailView />} />
+              <Route path="/admin/field-metadata" element={<FieldMetadataManager />} />
+              <Route path="/admin/users" element={<UserManagement />} />
               <Route path="/admin/news" element={<PlaceholderPage title="All News" />} />
               <Route path="/admin/articles" element={<PlaceholderPage title="All Articles" />} />
               <Route path="/admin/users" element={<PlaceholderPage title="User Management" />} />

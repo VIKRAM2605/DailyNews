@@ -1,60 +1,96 @@
 import jwt from 'jsonwebtoken';
-import dotenv from 'dotenv';
 
-dotenv.config();
-
-export const authMiddleware = async (req, res, next) => {
+export const authMiddleware = (req, res, next) => {
+  console.log('\n' + '='.repeat(60));
+  console.log('🔐 AUTH MIDDLEWARE');
+  console.log('='.repeat(60));
+  
   try {
-    // Get token from cookie or Authorization header
-    const token = req.cookies.token || req.headers.authorization?.replace('Bearer ', '');
+    // Get token from Authorization header
+    const authHeader = req.headers['authorization'];
+    console.log('📋 Authorization header:', authHeader ? 'Present' : 'Missing');
+    console.log('📋 Full header value:', authHeader);
+
+    const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
+    console.log('🎫 Extracted token:', token ? 'Found' : 'Not found');
+    console.log('🎫 Token length:', token?.length);
+    console.log('🎫 Token preview:', token ? token.substring(0, 50) + '...' : 'N/A');
 
     if (!token) {
-      return res.status(401).json({ error: 'Authentication required' });
+      console.log('❌ No token provided');
+      console.log('='.repeat(60) + '\n');
+      return res.status(401).json({
+        success: false,
+        error: 'Access token required'
+      });
     }
 
-    // Verify token
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    
-    // Attach user info to request
-    req.user = decoded;
-    next();
+    console.log('🔍 Verifying token...');
+    console.log('🔑 JWT_SECRET exists:', !!process.env.JWT_SECRET);
+
+    jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
+      if (err) {
+        console.error('❌ JWT verification failed:');
+        console.error('   - Error name:', err.name);
+        console.error('   - Error message:', err.message);
+        console.log('='.repeat(60) + '\n');
+        return res.status(403).json({
+          success: false,
+          error: 'Invalid or expired token'
+        });
+      }
+
+      console.log('✅ Token verified successfully');
+      console.log('👤 Decoded user:', {
+        id: user.id,
+        email: user.email,
+        role: user.role
+      });
+      console.log('='.repeat(60) + '\n');
+
+      req.user = user;
+      next();
+    });
   } catch (error) {
-    if (error.name === 'JsonWebTokenError') {
-      return res.status(401).json({ error: 'Invalid token' });
-    }
-    if (error.name === 'TokenExpiredError') {
-      return res.status(401).json({ error: 'Token expired' });
-    }
-    return res.status(500).json({ error: 'Authentication failed' });
+    console.error('❌ Auth middleware error:', error);
+    console.log('='.repeat(60) + '\n');
+    res.status(500).json({
+      success: false,
+      error: 'Authentication failed'
+    });
   }
 };
 
-export const optionalAuth = async (req, res, next) => {
-  try {
-    const token = req.cookies.token || req.headers.authorization?.replace('Bearer ', '');
-    
-    if (token) {
-      const decoded = jwt.verify(token, process.env.JWT_SECRET);
-      req.user = decoded;
-    }
-    next();
-  } catch (error) {
-    // Continue without authentication
-    next();
-  }
-};
-
-// Role-based authorization
-export const requireRole = (...roles) => {
+export const authorizeRoles = (allowedRoles) => {
   return (req, res, next) => {
+    console.log('\n' + '='.repeat(60));
+    console.log('🔐 ROLE AUTHORIZATION');
+    console.log('='.repeat(60));
+    
     if (!req.user) {
-      return res.status(401).json({ error: 'Authentication required' });
+      console.log('❌ No user in request');
+      console.log('='.repeat(60) + '\n');
+      return res.status(401).json({
+        success: false,
+        error: 'User not authenticated'
+      });
     }
-    
-    if (!roles.includes(req.user.role)) {
-      return res.status(403).json({ error: 'Insufficient permissions' });
+
+    console.log('👤 User role:', req.user.role);
+    console.log('✅ Allowed roles:', allowedRoles);
+    console.log('🔍 Role check:', allowedRoles.includes(req.user.role) ? 'PASS' : 'FAIL');
+
+    if (!allowedRoles.includes(req.user.role)) {
+      console.log('❌ Access denied for role:', req.user.role);
+      console.log('='.repeat(60) + '\n');
+      return res.status(403).json({
+        success: false,
+        error: `Access denied. Required role: ${allowedRoles.join(' or ')}`
+      });
     }
-    
+
+    console.log('✅ Role authorized:', req.user.role);
+    console.log('='.repeat(60) + '\n');
     next();
   };
 };
