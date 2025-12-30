@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Calendar, FileText, RefreshCw, Clock, User, Eye, AlertCircle } from 'lucide-react';
+import { Calendar, FileText, RefreshCw, User, AlertCircle } from 'lucide-react';
 import api from '../../utils/axios';
 import Alert from '../../components/alert/Alert';
 
@@ -127,7 +127,7 @@ const FacultyCardGroups = () => {
             {pagination.total} card group{pagination.total !== 1 ? 's' : ''} available
           </p>
           <div className="mt-4 bg-blue-50 border border-blue-200 rounded-lg p-3 flex items-start gap-2">
-            <AlertCircle className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+            <AlertCircle className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
             <p className="text-sm text-blue-900">
               You can <strong>create cards only for today</strong>. For past dates, you can only view existing cards and their content.
             </p>
@@ -146,9 +146,9 @@ const FacultyCardGroups = () => {
               {cardGroups.map((group) => (
                 <div
                   key={group.id}
-                  className={`relative border-2 rounded-lg p-5 transition-all cursor-pointer hover:shadow-md ${
+                  className={`relative border-2 rounded-lg p-5 transition-all cursor-pointer hover:shadow-lg ${
                     group.is_today
-                      ? 'border-green-300 bg-green-50 hover:border-green-400'
+                      ? 'border-green-300 bg-green-50 hover:border-green-400 hover:shadow-green-200'
                       : 'border-gray-200 hover:border-blue-300'
                   }`}
                   onClick={() => handleViewGroup(group.id)}
@@ -174,7 +174,7 @@ const FacultyCardGroups = () => {
                   </div>
 
                   {/* Card Count */}
-                  <div className="flex items-center justify-between mb-4 pb-4 border-b border-gray-200">
+                  <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2 text-sm text-gray-600">
                       <FileText className="w-4 h-4" />
                       <span>{group.card_count} card{group.card_count !== 1 ? 's' : ''}</span>
@@ -186,12 +186,6 @@ const FacultyCardGroups = () => {
                       </div>
                     )}
                   </div>
-
-                  {/* View Button */}
-                  <button className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors font-medium">
-                    <Eye className="w-4 h-4" />
-                    {group.is_today ? 'Manage Cards' : 'View Cards'}
-                  </button>
                 </div>
               ))}
             </div>

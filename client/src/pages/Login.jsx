@@ -212,7 +212,7 @@ const Login = () => {
         <div className="min-h-screen flex bg-white">
             {/* Left Side - Professional & Classic */}
             <div className="hidden lg:flex lg:w-1/2 relative">
-                <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900"></div>
+                <div className="absolute inset-0 bg-linear-to-br from-slate-900 via-blue-900 to-slate-900"></div>
 
                 <div className="absolute inset-0 opacity-10">
                     <div className="absolute inset-0" style={{

@@ -7,6 +7,8 @@ import {
   getFacultyCardDetails,
   updateFacultyCardContent
 } from '../controllers/dailyCard/facultyDailyCardDetailsCreationController.js';
+
+import { checkCardAccess } from '../controllers/cardPermission/cardPermissionsController.js';
 import { authMiddleware, authorizeRoles } from '../middlewares/authMiddleware.js';
 
 const router = express.Router();
@@ -27,10 +29,13 @@ router.get('/group/:groupId/cards', getFacultyGroupCards);
 // Create card (only for TODAY)
 router.post('/group/:groupId/cards', createFacultyCard);
 
+// Check permission for a single card (used by frontend before editing)
+router.get('/card/:cardId/check-permission', checkCardAccess);
+
 // Get single card details
 router.get('/card/:cardId', getFacultyCardDetails);
 
-// Update card content (only for TODAY)
+// Update card content (only for TODAY, with permission check)
 router.put('/card/:cardId/content', updateFacultyCardContent);
 
 export default router;

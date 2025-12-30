@@ -75,7 +75,7 @@ export const updateCard = async (req, res) => {
     const cardWithDetails = await db`
       SELECT c.*, u.name as creator_name
       FROM cards c
-      LEFT JOIN login u ON c.created_by::text = u.id::text
+      LEFT JOIN login u ON c.created_by = u.id
       WHERE c.id = ${cardId}
     `;
 
@@ -93,15 +93,17 @@ export const updateCard = async (req, res) => {
   }
 };
 
-// Get single card
+// Get single card with parsed card_content and latest generation
 export const getCard = async (req, res) => {
   try {
     const { cardId } = req.params;
 
+    console.log('📄 Fetching card:', cardId);
+
     const card = await db`
       SELECT c.*, u.name as creator_name
       FROM cards c
-      LEFT JOIN login u ON c.created_by::text = u.id::text
+      LEFT JOIN login u ON c.created_by = u.id
       WHERE c.id = ${cardId}
       LIMIT 1
     `;
@@ -113,9 +115,49 @@ export const getCard = async (req, res) => {
       });
     }
 
+    // ✅ Parse card_content if it's a string
+    let cardContent = card[0].card_content;
+    if (typeof cardContent === 'string') {
+      try {
+        cardContent = JSON.parse(cardContent);
+        console.log('✅ Parsed card_content from string');
+      } catch (e) {
+        console.error('Failed to parse card_content:', e);
+        cardContent = {};
+      }
+    }
+
+    console.log('📋 card_content keys:', Object.keys(cardContent || {}).length);
+
+    // ✅ Get current generation (latest in timeline)
+    const currentGeneration = await db`
+      SELECT * FROM card_generations
+      WHERE card_id = ${cardId} AND is_current = true
+      LIMIT 1
+    `;
+
+    console.log('📊 Current generation exists:', currentGeneration.length > 0);
+
+    const currentGen = currentGeneration[0] ? {
+      ...currentGeneration[0],
+      field_values: typeof currentGeneration[0].field_values === 'string' 
+        ? JSON.parse(currentGeneration[0].field_values) 
+        : currentGeneration[0].field_values,
+      generated_output: typeof currentGeneration[0].generated_output === 'string' 
+        ? JSON.parse(currentGeneration[0].generated_output) 
+        : currentGeneration[0].generated_output,
+      uploaded_images: typeof currentGeneration[0].uploaded_images === 'string' 
+        ? JSON.parse(currentGeneration[0].uploaded_images) 
+        : currentGeneration[0].uploaded_images
+    } : null;
+
     res.json({
       success: true,
-      card: card[0]
+      card: {
+        ...card[0],
+        card_content: cardContent || {}
+      },
+      current_generation: currentGen
     });
   } catch (error) {
     console.error('❌ Get card error:', error);
@@ -147,16 +189,39 @@ export const getFieldMetadata = async (req, res) => {
   }
 };
 
-// ✅ Generate content - simplified (frontend sends pre-filtered images)
+// ✅ Generate content - saves field_values to cards.card_content on FIRST generation ONLY for creator's cards
 export const generateContent = async (req, res) => {
   console.log('\n========== 🚀 GENERATE CONTENT REQUEST ==========');
   try {
     const { cardId } = req.params;
     let { style_selected, field_values, generated_output, existing_images } = req.body;
+    const userId = req.user?.id;
 
     console.log('📥 Request params:');
     console.log('  - cardId:', cardId);
+    console.log('  - userId:', userId);
     console.log('  - files received:', req.files?.length || 0);
+
+    // ✅ Get card details to check creator
+    const cardCheck = await db`
+      SELECT id, created_by, card_title
+      FROM cards
+      WHERE id = ${cardId}
+      LIMIT 1
+    `;
+
+    if (cardCheck.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'Card not found'
+      });
+    }
+
+    const isCreator = cardCheck[0].created_by === userId;
+    console.log('📊 Card creator check:');
+    console.log('  - Card creator:', cardCheck[0].created_by);
+    console.log('  - Current user:', userId);
+    console.log('  - Is creator?', isCreator);
 
     // Parse JSON strings
     if (typeof field_values === 'string') {
@@ -167,7 +232,7 @@ export const generateContent = async (req, res) => {
       generated_output = JSON.parse(generated_output);
     }
 
-    // ✅ Parse existing images (already filtered by frontend - no deleted images)
+    // Parse existing images
     let existingImagesObj = {};
     if (existing_images) {
       try {
@@ -181,7 +246,7 @@ export const generateContent = async (req, res) => {
       }
     }
 
-    // ✅ Process uploaded files
+    // Process uploaded files
     const newFilesByField = {};
     
     if (req.files && req.files.length > 0) {
@@ -197,7 +262,7 @@ export const generateContent = async (req, res) => {
       });
     }
 
-    // ✅ SIMPLE MERGE: existing (already filtered) + new
+    // SIMPLE MERGE: existing + new
     const finalImages = { ...existingImagesObj };
     
     if (Object.keys(newFilesByField).length > 0) {
@@ -219,6 +284,20 @@ export const generateContent = async (req, res) => {
     `;
     
     const nextGenNumber = (lastGen[0]?.max_num || 0) + 1;
+    const isFirstGeneration = nextGenNumber === 1;
+
+    console.log(`\n📊 Generation number: ${nextGenNumber}`);
+    
+    // ✅ Only populate card_content if FIRST generation AND user is the creator
+    const shouldPopulateCardContent = isFirstGeneration && isCreator;
+    
+    if (shouldPopulateCardContent) {
+      console.log('✅ FIRST generation + User is CREATOR → Will populate cards.card_content');
+    } else if (isFirstGeneration && !isCreator) {
+      console.log('⚠️  FIRST generation but user is NOT creator → Will NOT populate cards.card_content');
+    } else {
+      console.log('⏭️  Not first generation → Skipping cards.card_content update');
+    }
 
     // Set all previous generations to not current
     await db`
@@ -250,9 +329,27 @@ export const generateContent = async (req, res) => {
       RETURNING *
     `;
 
+    // ✅ ONLY populate cards.card_content if FIRST generation AND user is the creator
+    if (shouldPopulateCardContent) {
+      console.log('\n📝 Populating cards.card_content with field_values (creator only)...');
+      console.log('Field values to save:', field_values);
+      
+      await db`
+        UPDATE cards
+        SET card_content = ${JSON.stringify(field_values)}::jsonb,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = ${cardId}
+      `;
+      
+      console.log('✅ cards.card_content populated successfully');
+    }
+
     console.log('\n✅✅✅ Generation saved successfully!');
     console.log('  Generation ID:', newGen[0].id);
     console.log('  Generation Number:', newGen[0].generation_number);
+    console.log('  Is First:', isFirstGeneration);
+    console.log('  Is Creator:', isCreator);
+    console.log('  Card content populated:', shouldPopulateCardContent);
     console.log('========================================\n');
 
     const generationToSend = {
@@ -271,7 +368,9 @@ export const generateContent = async (req, res) => {
     res.json({
       success: true,
       generation: generationToSend,
-      message: 'Content saved successfully'
+      message: 'Content saved successfully',
+      isFirstGeneration,
+      cardContentPopulated: shouldPopulateCardContent
     });
   } catch (error) {
     console.error('\n❌❌❌ GENERATE CONTENT ERROR ❌❌❌');
@@ -368,7 +467,7 @@ export const updateGeneration = async (req, res) => {
   }
 };
 
-// ✅ Update generation WITH new images - simplified
+// ✅ Update generation WITH new images
 export const updateGenerationWithImages = async (req, res) => {
   console.log('\n========== 🔄 UPDATE GENERATION WITH IMAGES ==========');
   try {
@@ -383,7 +482,7 @@ export const updateGenerationWithImages = async (req, res) => {
       field_values = JSON.parse(field_values);
     }
 
-    // ✅ Parse existing images (already filtered by frontend - no deleted images)
+    // Parse existing images
     let existingImagesObj = {};
     if (existing_images) {
       existingImagesObj = typeof existing_images === 'string'
@@ -392,7 +491,7 @@ export const updateGenerationWithImages = async (req, res) => {
       console.log('  ✅ Received pre-filtered existing_images');
     }
 
-    // ✅ Process new files
+    // Process new files
     const newFilesByField = {};
     if (req.files && req.files.length > 0) {
       console.log('\n📸 Processing new files...');
@@ -406,7 +505,7 @@ export const updateGenerationWithImages = async (req, res) => {
       });
     }
 
-    // ✅ SIMPLE MERGE: existing (already filtered) + new
+    // SIMPLE MERGE: existing + new
     const finalImages = { ...existingImagesObj };
     if (Object.keys(newFilesByField).length > 0) {
       console.log('\n➕ Appending new images...');

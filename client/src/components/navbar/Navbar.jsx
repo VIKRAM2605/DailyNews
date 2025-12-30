@@ -1,16 +1,10 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
 import { 
-  LayoutDashboard, 
   Newspaper, 
   Users, 
-  Settings, 
   FileText,
-  BarChart3,
-  Calendar,
-  Bell,
   LogOut,
-  UserCheck,
 } from 'lucide-react';
 
 const Navbar = () => {
@@ -18,83 +12,39 @@ const Navbar = () => {
   const user = JSON.parse(localStorage.getItem('user') || '{}');
   const userRole = user?.role || 'faculty';
 
-  // Faculty menu items
+  // Faculty menu items - DAILY CARDS ONLY
   const facultyMenuItems = [
     { 
-      name: 'Dashboard', 
-      icon: LayoutDashboard, 
-      path: '/faculty/dashboard' 
-    },
-    { 
-      name: 'My Articles', 
-      icon: FileText, 
-      path: '/faculty/articles' 
-    },
-    { 
-      name: 'Submit News', 
+      name: 'Daily Cards', 
       icon: Newspaper, 
-      path: '/faculty/submit-news' 
-    },
-    { 
-      name: 'Calendar', 
-      icon: Calendar, 
-      path: '/faculty/calendar' 
-    },
-    { 
-      name: 'Notifications', 
-      icon: Bell, 
-      path: '/faculty/notifications' 
+      path: '/faculty/daily-cards' 
     },
   ];
 
-  // Admin menu items
+  // Admin menu items - ACTIVE ROUTES ONLY
   const adminMenuItems = [
     { 
-      name: 'Dashboard', 
-      icon: LayoutDashboard, 
-      path: '/admin/dashboard' 
-    },
-    { 
-      name: 'All News', 
+      name: 'Daily Cards', 
       icon: Newspaper, 
-      path: '/admin/news' 
+      path: '/admin/daily-cards' 
     },
     { 
-      name: 'Articles', 
+      name: 'Field Metadata', 
       icon: FileText, 
-      path: '/admin/articles' 
+      path: '/admin/field-metadata' 
     },
     { 
       name: 'Users', 
       icon: Users, 
       path: '/admin/users' 
     },
-    { 
-      name: 'Approvals', 
-      icon: UserCheck, 
-      path: '/admin/approvals' 
-    },
-    { 
-      name: 'Analytics', 
-      icon: BarChart3, 
-      path: '/admin/analytics' 
-    },
-    { 
-      name: 'Notifications', 
-      icon: Bell, 
-      path: '/admin/notifications' 
-    },
   ];
 
   // Select menu based on role
   const menuItems = userRole === 'admin' ? adminMenuItems : facultyMenuItems;
 
+  // Bottom menu items - LOGOUT ONLY
   const bottomMenuItems = [
-    { 
-      name: 'Settings', 
-      icon: Settings, 
-      path: userRole === 'admin' ? '/admin/settings' : '/faculty/settings'
-    },
     { 
       name: 'Logout', 
       icon: LogOut, 
@@ -159,7 +109,7 @@ const Navbar = () => {
         })}
       </nav>
 
-      {/* Bottom Menu Items */}
+      {/* Bottom Menu Items - LOGOUT ONLY */}
       <div className="border-t border-gray-200 shrink-0">
         {bottomMenuItems.map((item, index) => {
           const Icon = item.icon;
@@ -193,40 +143,6 @@ const Navbar = () => {
               </button>
             );
           }
-
-          return (
-            <NavLink
-              key={item.name}
-              to={item.path}
-              className={({ isActive }) =>
-                `flex items-center justify-center h-12 relative group ${
-                  isActive
-                    ? 'text-blue-600 bg-blue-50'
-                    : 'text-gray-600 hover:text-slate-900 hover:bg-gray-50'
-                } transition-all duration-200`
-              }
-            >
-              <Icon className="w-5 h-5" />
-              
-              {/* Tooltip with Arrow */}
-              <span 
-                className="fixed px-3 py-2 bg-slate-900 text-white text-sm font-medium rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 whitespace-nowrap pointer-events-none shadow-lg"
-                style={{ 
-                  zIndex: 9999,
-                  left: '72px',
-                  bottom: `${(bottomMenuItems.length - index - 1) * 48 + 24}px`,
-                  transform: 'translateY(50%)'
-                }}
-              >
-                {item.name}
-                {/* Arrow */}
-                <span 
-                  className="absolute right-full top-1/2 -translate-y-1/2 border-4 border-transparent border-r-slate-900"
-                  style={{ marginRight: '0px' }}
-                ></span>
-              </span>
-            </NavLink>
-          );
         })}
       </div>
     </div>
