@@ -48,7 +48,7 @@ const Header = () => {
                         className="w-9 h-9 rounded-full object-cover border-2 border-gray-200"
                     />
                 ) : (
-                    <div className="w-9 h-9 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-white font-semibold text-sm border-2 border-gray-200">
+                    <div className="w-9 h-9 rounded-full bg-linear-to-br from-blue-500 to-blue-600 flex items-center justify-center text-white font-semibold text-sm border-2 border-gray-200">
                         {getInitials(user?.username || user?.name)}
                     </div>
                 )}

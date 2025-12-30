@@ -15,20 +15,60 @@ const Login = () => {
     const [loading, setLoading] = useState(false);
 
     useEffect(() => {
-        const user = JSON.parse(localStorage.getItem('user') || 'null');
-        if (user) {
-            navigate('/dashboard', { replace: true });
+        console.log('\n' + '='.repeat(60));
+        console.log('🚀 LOGIN PAGE MOUNTED');
+        console.log('='.repeat(60));
+        
+        // Check both token and user
+        const token = localStorage.getItem('token');
+        const userStr = localStorage.getItem('user');
+        
+        console.log('🔍 Checking existing session:');
+        console.log('   - Token exists:', !!token);
+        console.log('   - Token length:', token?.length);
+        console.log('   - User exists:', !!userStr);
+        
+        if (token) {
+            console.log('🎫 Token preview:', token.substring(0, 50) + '...');
+        }
+        
+        if (userStr) {
+            try {
+                const user = JSON.parse(userStr);
+                console.log('👤 Stored user:', user);
+                
+                if (token && user) {
+                    console.log('✅ User already logged in, redirecting...');
+                    if (user.role === 'admin') {
+                        console.log('📍 Redirecting to admin dashboard');
+                        navigate('/admin/daily-cards', { replace: true });
+                    } else if (user.role === 'faculty') {
+                        console.log('📍 Redirecting to faculty dashboard');
+                        navigate('/faculty/daily-cards', { replace: true });
+                    } else {
+                        console.log('📍 Redirecting to default dashboard');
+                        navigate('/dashboard', { replace: true });
+                    }
+                }
+            } catch (e) {
+                console.error('❌ Error parsing stored user:', e);
+            }
         }
 
         // Handle error messages from URL params
         const errorParam = searchParams.get('error');
-        if (errorParam === 'pending_approval') {
-            setError('Your account is pending admin approval. Please contact support.');
-        } else if (errorParam === 'google_auth_failed') {
-            setError('Google authentication failed. Please try again.');
-        } else if (errorParam === 'auth_failed') {
-            setError('Authentication failed. Please try again.');
+        if (errorParam) {
+            console.log('⚠️ Error param in URL:', errorParam);
+            if (errorParam === 'pending_approval') {
+                setError('Your account is pending admin approval. Please contact support.');
+            } else if (errorParam === 'google_auth_failed') {
+                setError('Google authentication failed. Please try again.');
+            } else if (errorParam === 'auth_failed') {
+                setError('Authentication failed. Please try again.');
+            }
         }
+        
+        console.log('='.repeat(60) + '\n');
     }, [navigate, searchParams]);
 
     const handleChange = (e) => {
@@ -41,23 +81,112 @@ const Login = () => {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+        
+        console.log('\n' + '='.repeat(60));
+        console.log('🔐 LOGIN FORM SUBMITTED');
+        console.log('='.repeat(60));
+        
         setLoading(true);
         setError('');
 
         try {
+            console.log('📧 Email:', formData.email);
+            console.log('🔑 Password provided:', !!formData.password);
+            console.log('📤 Sending login request to API...');
+            
             const response = await api.post('/auth/login', formData);
 
-            if (response.data.success) {
-                const userData = response.data.user;
-                localStorage.setItem('user', JSON.stringify(userData));
+            console.log('\n📥 RESPONSE RECEIVED:');
+            console.log('   - Status:', response.status);
+            console.log('   - Status Text:', response.statusText);
+            console.log('   - Headers:', response.headers);
+            console.log('\n📦 Response Data:');
+            console.log(JSON.stringify(response.data, null, 2));
 
+            if (response.data.success) {
+                const { token, user } = response.data;
+
+                console.log('\n🔍 EXTRACTING DATA:');
+                console.log('   - Token exists:', !!token);
+                console.log('   - Token type:', typeof token);
+                console.log('   - Token value:', token);
+                console.log('   - Token length:', token?.length);
+                console.log('   - User exists:', !!user);
+                console.log('   - User data:', user);
+
+                if (!token) {
+                    console.error('❌ CRITICAL: NO TOKEN IN RESPONSE!');
+                    console.error('Response data:', response.data);
+                    setError('Authentication failed - no token received from server');
+                    setLoading(false);
+                    return;
+                }
+
+                if (!user) {
+                    console.error('❌ CRITICAL: NO USER IN RESPONSE!');
+                    setError('Authentication failed - no user data received from server');
+                    setLoading(false);
+                    return;
+                }
+
+                console.log('\n💾 STORING TO LOCALSTORAGE:');
+                
+                // Store token
+                console.log('   - Storing token...');
+                localStorage.setItem('token', token);
+                const storedToken = localStorage.getItem('token');
+                console.log('   - Token stored:', !!storedToken);
+                console.log('   - Token matches:', storedToken === token);
+                
+                // Store user
+                console.log('   - Storing user...');
+                localStorage.setItem('user', JSON.stringify(user));
+                const storedUser = localStorage.getItem('user');
+                console.log('   - User stored:', !!storedUser);
+                console.log('   - Stored user preview:', storedUser?.substring(0, 100));
+
+                console.log('\n✅ LOGIN SUCCESSFUL');
+                console.log('📍 Preparing to redirect...');
+                console.log('👤 User role:', user.role);
+
+                // Redirect based on role
                 setTimeout(() => {
-                    navigate('/dashboard', { replace: true });
+                    if (user.role === 'admin') {
+                        console.log('📍 Redirecting to: /admin/daily-cards');
+                        navigate('/admin/daily-cards', { replace: true });
+                    } else if (user.role === 'faculty') {
+                        console.log('📍 Redirecting to: /faculty/daily-cards');
+                        navigate('/faculty/daily-cards', { replace: true });
+                    } else {
+                        console.log('📍 Redirecting to: /dashboard');
+                        navigate('/dashboard', { replace: true });
+                    }
                 }, 100);
             } else {
+                console.error('❌ Response success is false');
+                console.error('Response:', response.data);
                 setError('Login failed. Please try again.');
             }
         } catch (err) {
+            console.error('\n❌ LOGIN ERROR:');
+            console.error('Error object:', err);
+            console.error('Error name:', err.name);
+            console.error('Error message:', err.message);
+            
+            if (err.response) {
+                console.error('\n📥 ERROR RESPONSE:');
+                console.error('   - Status:', err.response.status);
+                console.error('   - Status Text:', err.response.statusText);
+                console.error('   - Data:', err.response.data);
+                console.error('   - Headers:', err.response.headers);
+            } else if (err.request) {
+                console.error('\n📡 NO RESPONSE RECEIVED:');
+                console.error('Request:', err.request);
+            } else {
+                console.error('\n⚙️ REQUEST SETUP ERROR:');
+                console.error('Message:', err.message);
+            }
+            
             if (err.response?.status === 403) {
                 setError('Your account is pending admin approval. Please wait or contact support.');
             } else {
@@ -68,40 +197,36 @@ const Login = () => {
                 );
             }
         } finally {
+            console.log('='.repeat(60) + '\n');
             setLoading(false);
         }
     };
 
     const handleGoogleLogin = () => {
-        const backendUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-        window.location.href = `${backendUrl}/api/auth/google`;
+        const backendUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+        console.log('🔗 Redirecting to Google OAuth:', `${backendUrl}/auth/google`);
+        window.location.href = `${backendUrl}/auth/google`;
     };
 
     return (
         <div className="min-h-screen flex bg-white">
             {/* Left Side - Professional & Classic */}
             <div className="hidden lg:flex lg:w-1/2 relative">
-                {/* Background Gradient */}
-                <div className="absolute inset-0 bg-linear-to-br from-slate-900 via-blue-900 to-slate-900"></div>
+                <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900"></div>
 
-                {/* Geometric Pattern Overlay */}
                 <div className="absolute inset-0 opacity-10">
                     <div className="absolute inset-0" style={{
                         backgroundImage: `repeating-linear-gradient(45deg, transparent, transparent 35px, rgba(255,255,255,.05) 35px, rgba(255,255,255,.05) 70px)`
                     }}></div>
                 </div>
 
-                {/* Content */}
                 <div className="relative z-10 flex flex-col justify-between p-12 w-full">
-                    {/* Logo/Brand */}
                     <div>
                         <h1 className="text-4xl font-bold text-white mb-2">DailyNews</h1>
                         <div className="w-16 h-1 bg-blue-400 rounded-full"></div>
                     </div>
 
-                    {/* Center Quote */}
                     <div className="text-white flex flex-col items-center text-center">
-                        {/* Row for SVG, left aligned inside a full-width container */}
                         <div className="w-full pl-16 flex justify-start">
                             <svg
                                 className="w-16 h-16 text-blue-400 mb-6"
@@ -112,7 +237,6 @@ const Login = () => {
                             </svg>
                         </div>
 
-                        {/* Centered text */}
                         <p className="text-3xl font-light leading-relaxed mb-6 text-white">
                             Welcome back. Your news awaits.
                         </p>
@@ -121,7 +245,6 @@ const Login = () => {
                         </p>
                     </div>
 
-                    {/* Footer */}
                     <div className="text-slate-400 text-sm">
                         © 2025 DailyNews. All rights reserved.
                     </div>
@@ -131,7 +254,6 @@ const Login = () => {
             {/* Right Side - Login Form */}
             <div className="flex-1 flex items-center justify-center p-8 bg-gray-50">
                 <div className="w-full max-w-md">
-                    {/* Mobile Logo */}
                     <div className="lg:hidden text-center mb-8">
                         <h1 className="text-3xl font-bold text-gray-900 mb-2">DailyNews</h1>
                         <div className="w-16 h-1 bg-blue-600 mx-auto rounded-full"></div>
@@ -215,7 +337,6 @@ const Login = () => {
                             </button>
                         </form>
 
-                        {/* Divider */}
                         <div className="relative my-6">
                             <div className="absolute inset-0 flex items-center">
                                 <div className="w-full border-t border-gray-300"></div>
@@ -225,7 +346,6 @@ const Login = () => {
                             </div>
                         </div>
 
-                        {/* Google Sign In Button */}
                         <button
                             type="button"
                             onClick={handleGoogleLogin}

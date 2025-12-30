@@ -3,12 +3,24 @@ import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import session from 'express-session';
 import passport from './config/passport.js';
+import cron from 'node-cron';
 import dotenv from 'dotenv';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
 import loginRoutes from './routes/loginRoute.js';
+import dailyCardRoutes from './routes/dailyCardRoutes.js';
+import fieldMetadataRoutes from './routes/fieldMetadataRoutes.js';
+import userRoutes from './routes/userRoutes.js';
+import facultyDailyCardDetailsCreationRoutes from './routes/facultyDailyCardDetailsCreationRoutes.js';
+import { autoGenerateCardGroup } from './controllers/dailyCard/dailyCardGroupAndCardsOfGroupController.js';
 
 dotenv.config();
 
 const app = express();
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // Middleware
 app.use(express.json());
@@ -20,7 +32,10 @@ app.use(cors({
   credentials: true
 }));
 
-// Session middleware (required for Passport)
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+console.log('📁 Static files serving from:', path.join(__dirname, 'uploads'));
+
+// Session middleware
 app.use(
   session({
     secret: process.env.SESSION_SECRET || 'your-secret-key-change-this-in-production',
@@ -29,7 +44,7 @@ app.use(
     cookie: {
       secure: process.env.NODE_ENV === 'production',
       httpOnly: true,
-      maxAge: 24 * 60 * 60 * 1000 // 24 hours
+      maxAge: 24 * 60 * 60 * 1000
     }
   })
 );
@@ -40,7 +55,10 @@ app.use(passport.session());
 
 // Routes
 app.use('/api/auth', loginRoutes);
-
+app.use('/api/daily-card', dailyCardRoutes);
+app.use('/api/field-metadata', fieldMetadataRoutes);
+app.use('/api/users', userRoutes);  // ✅ Add this
+app.use('/api/faculty/daily-card', facultyDailyCardDetailsCreationRoutes);
 // Health check
 app.get('/health', (req, res) => {
   res.json({ 
@@ -49,6 +67,17 @@ app.get('/health', (req, res) => {
     environment: process.env.NODE_ENV 
   });
 });
+
+// Cron job
+cron.schedule('0 0 * * *', async () => {
+  console.log('🕐 Running daily card group generation cron job...');
+  await autoGenerateCardGroup();
+}, {
+  timezone: "Asia/Kolkata"
+});
+
+console.log('🔍 Checking today\'s card group on server start...');
+autoGenerateCardGroup();
 
 // 404 handler
 app.use((req, res) => {
@@ -67,4 +96,5 @@ app.listen(PORT, () => {
   console.log(`📍 Environment: ${process.env.NODE_ENV}`);
   console.log(`🌐 CORS enabled for: ${process.env.FRONTEND_URL}`);
   console.log(`🔐 Google OAuth configured`);
+  console.log(`⏰ Cron job scheduled: Daily at 00:00 IST`);
 });
