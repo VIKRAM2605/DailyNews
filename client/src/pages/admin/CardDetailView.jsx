@@ -1,18 +1,18 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { 
-  ArrowLeft, 
-  RefreshCw, 
-  History, 
-  Sparkles, 
-  Upload, 
-  X, 
-  Check, 
-  Undo, 
-  RotateCcw, 
-  Users, 
-  Share2, 
-  Mail, 
+import {
+  ArrowLeft,
+  RefreshCw,
+  History,
+  Sparkles,
+  Upload,
+  X,
+  Check,
+  Undo,
+  RotateCcw,
+  Users,
+  Share2,
+  Mail,
   Trash2,
   AlertCircle
 } from 'lucide-react';
@@ -26,11 +26,11 @@ const CardDetailView = () => {
   const [card, setCard] = useState(null);
   const [fieldMetadata, setFieldMetadata] = useState([]);
   const [fieldValues, setFieldValues] = useState({});
-  
+
   const [fileFields, setFileFields] = useState({});
   const [filePreviewUrls, setFilePreviewUrls] = useState({});
   const [deletedImages, setDeletedImages] = useState({});
-  
+
   const [currentGeneration, setCurrentGeneration] = useState(null);
   const [allGenerations, setAllGenerations] = useState([]);
   const [selectedStyle, setSelectedStyle] = useState('professional');
@@ -39,21 +39,21 @@ const CardDetailView = () => {
   const [showTimelineModal, setShowTimelineModal] = useState(false);
   const [isRegenerating, setIsRegenerating] = useState(false);
   const [regeneratingGenerationId, setRegeneratingGenerationId] = useState(null);
-  
+
   const [onlineCount, setOnlineCount] = useState(1);
   const [activeEditors, setActiveEditors] = useState({});
-  
+
   const [showShareModal, setShowShareModal] = useState(false);
   const [sharedUsers, setSharedUsers] = useState([]);
   const [shareEmail, setShareEmail] = useState('');
   const [sharingLoading, setSharingLoading] = useState(false);
-  
+
   const [availableUsers, setAvailableUsers] = useState([]);
   const [filteredUsers, setFilteredUsers] = useState([]);
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const [selectedUserIndex, setSelectedUserIndex] = useState(-1);
   const dropdownRef = useRef(null);
-  
+
   const [alert, setAlert] = useState({
     isOpen: false,
     severity: 'success',
@@ -137,41 +137,61 @@ const CardDetailView = () => {
     return {};
   };
 
-  // Load draft from localStorage
+  // Load draft from localStorage - ONLY in normal mode (not override mode)
   useEffect(() => {
+    // Don't load draft in override mode
+    if (isRegenerating) {
+      console.log('📝 Draft disabled in override mode');
+      return;
+    }
+
     const draftKey = `admin_card_draft_${cardId}`;
     const savedDraft = localStorage.getItem(draftKey);
-    
+
     if (savedDraft) {
       try {
         const draft = JSON.parse(savedDraft);
         setFieldValues(draft.fieldValues || {});
         setSelectedStyle(draft.selectedStyle || 'professional');
-        console.log('✅ Admin: Loaded draft');
+        console.log('✅ Admin:  Loaded draft');
       } catch (e) {
         console.error('Failed to load draft:', e);
       }
     }
-  }, [cardId]);
+  }, [cardId, isRegenerating]);
 
-  // Auto-save draft
+  // Auto-save draft - ONLY in normal mode (not override mode)
   useEffect(() => {
     if (Object.keys(fieldValues).length === 0) return;
-    
+
+    // Don't auto-save draft in override mode
+    if (isRegenerating) {
+      console.log('📝 Auto-save disabled in override mode');
+      return;
+    }
+
     const draftKey = `admin_card_draft_${cardId}`;
     const draft = {
       fieldValues,
       selectedStyle,
       timestamp: new Date().toISOString()
     };
-    
-    localStorage.setItem(draftKey, JSON.stringify(draft));
-  }, [fieldValues, selectedStyle, cardId]);
 
-  // Socket.IO initialization
+    localStorage.setItem(draftKey, JSON.stringify(draft));
+  }, [fieldValues, selectedStyle, cardId, isRegenerating]);
+
+  // Socket. IO initialization - DISABLED in override mode
   useEffect(() => {
-    console.log('🔌 Admin: Initializing socket...');
-    
+    // Disable sockets in override mode
+    if (isRegenerating) {
+      console.log('🔌 Sockets disabled in override mode');
+      socketService.removeAllListeners();
+      socketService.disconnect();
+      return;
+    }
+
+    console.log('🔌 Admin:  Initializing socket.. .');
+
     const socket = socketService.connect();
     socketService.joinCard(cardId, userId, userName, userEmail);
 
@@ -181,21 +201,21 @@ const CardDetailView = () => {
 
     socketService.onFieldUpdated(({ fieldName, value, userId: editorId, userName: updaterName, userEmail: updaterEmail }) => {
       setFieldValues(prev => ({ ...prev, [fieldName]: value }));
-      
+
       const editorColor = getUserColor(editorId);
       const displayName = getDisplayName(updaterName, updaterEmail);
-      
+
       setActiveEditors(prev => ({
         ...prev,
-        [fieldName]: { 
-          userName: updaterName, 
+        [fieldName]: {
+          userName: updaterName,
           userEmail: updaterEmail,
           displayName,
-          userId: editorId, 
-          color: editorColor 
+          userId: editorId,
+          color: editorColor
         }
       }));
-      
+
       setTimeout(() => {
         setActiveEditors(prev => {
           const updated = { ...prev };
@@ -217,7 +237,7 @@ const CardDetailView = () => {
       socketService.removeAllListeners();
       socketService.disconnect();
     };
-  }, [cardId, userId, userName, userEmail]);
+  }, [cardId, userId, userName, userEmail, isRegenerating]);
 
   useEffect(() => {
     return () => {
@@ -307,18 +327,18 @@ const CardDetailView = () => {
 
   const handleEmailInputChange = (value) => {
     setShareEmail(value);
-    
+
     if (value.trim() === '') {
       setFilteredUsers(availableUsers);
       setShowUserDropdown(false);
       return;
     }
 
-    const filtered = availableUsers.filter(user => 
+    const filtered = availableUsers.filter(user =>
       user.email.toLowerCase().includes(value.toLowerCase()) ||
       user.name.toLowerCase().includes(value.toLowerCase())
     );
-    
+
     setFilteredUsers(filtered);
     setShowUserDropdown(filtered.length > 0);
     setSelectedUserIndex(-1);
@@ -341,7 +361,7 @@ const CardDetailView = () => {
     switch (e.key) {
       case 'ArrowDown':
         e.preventDefault();
-        setSelectedUserIndex(prev => 
+        setSelectedUserIndex(prev =>
           prev < filteredUsers.length - 1 ? prev + 1 : prev
         );
         break;
@@ -439,28 +459,35 @@ const CardDetailView = () => {
     }
   };
 
-  const handleRevertToOriginal = () => {
-    const cardContent = card?.card_content || {};
-    
-    if (Object.keys(cardContent).length === 0) {
-      showAlert('No original content to revert to', 'warning');
-      return;
-    }
+const handleRevertToOriginal = () => {
+  const cardContent = card?. card_content || {};
 
-    setFieldValues(cardContent);
-    setSelectedStyle('professional');
+  if (Object.keys(cardContent).length === 0) {
+    showAlert('No original content to revert to', 'warning');
+    return;
+  }
+
+  setFieldValues(cardContent);
+  setSelectedStyle('professional');
+  
+  // Don't reset these if in override mode - stay in override mode
+  if (!isRegenerating) {
     setCurrentGeneration(null);
-    setIsRegenerating(false);
-    setRegeneratingGenerationId(null);
-    setFileFields({});
-    setFilePreviewUrls({});
-    setDeletedImages({});
-    
-    const draftKey = `admin_card_draft_${cardId}`;
-    localStorage.removeItem(draftKey);
-    
-    showAlert('Reverted to original content', 'success');
-  };
+  }
+  
+  // Don't exit override mode - keep isRegenerating and regeneratingGenerationId as is
+  // setIsRegenerating(false);  // REMOVED
+  // setRegeneratingGenerationId(null);  // REMOVED
+  
+  setFileFields({});
+  setFilePreviewUrls({});
+  setDeletedImages({});
+
+  const draftKey = `admin_card_draft_${cardId}`;
+  localStorage.removeItem(draftKey);
+
+  showAlert('Reverted to original content', 'success');
+};
 
   const handleClearDraft = () => {
     if (confirm('Are you sure you want to clear the unsaved draft?')) {
@@ -489,7 +516,7 @@ const CardDetailView = () => {
       }
 
       const data = await response.json();
-      
+
       if (data.success) {
         return data.generated_content;
       } else {
@@ -519,30 +546,30 @@ const CardDetailView = () => {
     const files = Array.from(e.target.files);
     const fieldName = field.field_name;
     const maxFiles = getMaxFiles(field);
-    
+
     if (maxFiles > 1) {
       const currentFiles = fileFields[fieldName] || [];
-      
+
       const uploadedImagesData = currentGeneration?.uploaded_images || {};
       const savedImagesCount = typeof uploadedImagesData === 'object' && !Array.isArray(uploadedImagesData)
         ? (uploadedImagesData[fieldName] || []).length
         : 0;
-      
+
       const totalFiles = files.length + currentFiles.length + savedImagesCount;
-      
+
       if (totalFiles > maxFiles) {
         showAlert(`Maximum ${maxFiles} file${maxFiles > 1 ? 's' : ''} allowed for ${field.label}`, 'warning');
         return;
       }
-      
+
       const newUrls = files.map(file => URL.createObjectURL(file));
       const currentUrls = filePreviewUrls[fieldName] || [];
-      
+
       setFileFields({
         ...fileFields,
         [fieldName]: [...currentFiles, ...files]
       });
-      
+
       setFilePreviewUrls({
         ...filePreviewUrls,
         [fieldName]: [...currentUrls, ...newUrls]
@@ -552,18 +579,18 @@ const CardDetailView = () => {
         showAlert(`Only 1 file allowed for ${field.label}`, 'warning');
         return;
       }
-      
+
       if (filePreviewUrls[fieldName]) {
         URL.revokeObjectURL(filePreviewUrls[fieldName]);
       }
-      
+
       const newUrl = URL.createObjectURL(files[0]);
-      
+
       setFileFields({
         ...fileFields,
         [fieldName]: files[0]
       });
-      
+
       setFilePreviewUrls({
         ...filePreviewUrls,
         [fieldName]: newUrl
@@ -575,16 +602,16 @@ const CardDetailView = () => {
     if (fileIndex !== null) {
       const currentFiles = fileFields[fieldName] || [];
       const currentUrls = filePreviewUrls[fieldName] || [];
-      
+
       if (currentUrls[fileIndex]) {
         URL.revokeObjectURL(currentUrls[fileIndex]);
       }
-      
+
       setFileFields({
         ...fileFields,
         [fieldName]: currentFiles.filter((_, i) => i !== fileIndex)
       });
-      
+
       setFilePreviewUrls({
         ...filePreviewUrls,
         [fieldName]: currentUrls.filter((_, i) => i !== fileIndex)
@@ -597,11 +624,11 @@ const CardDetailView = () => {
           URL.revokeObjectURL(filePreviewUrls[fieldName]);
         }
       }
-      
+
       const newFileFields = { ...fileFields };
       delete newFileFields[fieldName];
       setFileFields(newFileFields);
-      
+
       const newPreviewUrls = { ...filePreviewUrls };
       delete newPreviewUrls[fieldName];
       setFilePreviewUrls(newPreviewUrls);
@@ -610,13 +637,13 @@ const CardDetailView = () => {
 
   const removeSavedImage = (fieldName, imageIndex) => {
     if (!currentGeneration?.uploaded_images) return;
-    
+
     const uploadedImagesData = currentGeneration.uploaded_images;
-    
+
     if (typeof uploadedImagesData === 'object' && !Array.isArray(uploadedImagesData)) {
       const fieldImages = uploadedImagesData[fieldName] || [];
       const imageToDelete = fieldImages[imageIndex];
-      
+
       setDeletedImages(prev => ({
         ...prev,
         [fieldName]: [...(prev[fieldName] || []), imageToDelete]
@@ -626,7 +653,11 @@ const CardDetailView = () => {
 
   const handleFieldChange = (fieldName, value) => {
     setFieldValues(prev => ({ ...prev, [fieldName]: value }));
-    socketService.emitFieldChange(cardId, fieldName, value, userId, userName, userEmail);
+
+    // Don't emit socket events in override mode
+    if (!isRegenerating) {
+      socketService.emitFieldChange(cardId, fieldName, value, userId, userName, userEmail);
+    }
   };
 
   const handleGenerate = async () => {
@@ -647,30 +678,30 @@ const CardDetailView = () => {
       formData.append('style_selected', selectedStyle);
       formData.append('field_values', JSON.stringify(fieldValues));
       formData.append('generated_output', JSON.stringify(aiGeneratedContent));
-      
+
       const existingImagesAfterDeletion = {};
       if (currentGeneration?.uploaded_images) {
         const uploadedImagesData = currentGeneration.uploaded_images;
-        
+
         if (typeof uploadedImagesData === 'object' && !Array.isArray(uploadedImagesData)) {
           Object.keys(uploadedImagesData).forEach(fieldName => {
             const allImages = uploadedImagesData[fieldName] || [];
             const deletedForField = deletedImages[fieldName] || [];
-            
+
             const remainingImages = allImages.filter(img => !deletedForField.includes(img));
-            
+
             if (remainingImages.length > 0) {
               existingImagesAfterDeletion[fieldName] = remainingImages;
             }
           });
         }
       }
-      
+
       formData.append('existing_images', JSON.stringify(existingImagesAfterDeletion));
-      
+
       Object.keys(fileFields).forEach((fieldName) => {
         const fieldData = fileFields[fieldName];
-        
+
         if (Array.isArray(fieldData)) {
           fieldData.forEach((file) => {
             formData.append(fieldName, file);
@@ -688,23 +719,25 @@ const CardDetailView = () => {
 
       if (response.data.success) {
         const newGenerationFromServer = response.data.generation;
-        
+
         setCurrentGeneration(newGenerationFromServer);
         setIsRegenerating(false);
         setRegeneratingGenerationId(null);
-        
+
         setFileFields({});
         setFilePreviewUrls({});
         setDeletedImages({});
-        
+
+        // Clear draft after successful generation in normal mode
         const draftKey = `admin_card_draft_${cardId}`;
         localStorage.removeItem(draftKey);
-        
+        console.log('✅ Draft cleared after successful generation');
+
         const allGensResponse = await api.get(`/daily-card/cards/${cardId}/generations`);
         if (allGensResponse.data.success) {
           setAllGenerations(allGensResponse.data.generations);
         }
-        
+
         showAlert('Content generated successfully!', 'success');
       }
     } catch (error) {
@@ -735,30 +768,30 @@ const CardDetailView = () => {
         formData.append('style_selected', selectedStyle);
         formData.append('generated_output', JSON.stringify(aiGeneratedContent));
         formData.append('field_values', JSON.stringify(fieldValues));
-        
+
         const existingImagesAfterDeletion = {};
         if (currentGeneration?.uploaded_images) {
           const uploadedImagesData = currentGeneration.uploaded_images;
-          
+
           if (typeof uploadedImagesData === 'object' && !Array.isArray(uploadedImagesData)) {
             Object.keys(uploadedImagesData).forEach(fieldName => {
               const allImages = uploadedImagesData[fieldName] || [];
               const deletedForField = deletedImages[fieldName] || [];
-              
+
               const remainingImages = allImages.filter(img => !deletedForField.includes(img));
-              
+
               if (remainingImages.length > 0) {
                 existingImagesAfterDeletion[fieldName] = remainingImages;
               }
             });
           }
         }
-        
+
         formData.append('existing_images', JSON.stringify(existingImagesAfterDeletion));
-        
+
         Object.keys(fileFields).forEach((fieldName) => {
           const fieldData = fileFields[fieldName];
-          
+
           if (Array.isArray(fieldData)) {
             fieldData.forEach((file) => {
               formData.append(fieldName, file);
@@ -769,7 +802,7 @@ const CardDetailView = () => {
         });
 
         const response = await api.put(
-          `/daily-card/cards/${cardId}/generations/${generationIdToOverride}/with-images`, 
+          `/daily-card/cards/${cardId}/generations/${generationIdToOverride}/with-images`,
           formData,
           {
             headers: {
@@ -780,18 +813,18 @@ const CardDetailView = () => {
 
         if (response.data.success) {
           const updatedGen = response.data.generation;
-          
+
           setFileFields({});
           setFilePreviewUrls({});
           setDeletedImages({});
-          
+
           setCurrentGeneration(updatedGen);
-          
+
           const allGensResponse = await api.get(`/daily-card/cards/${cardId}/generations`);
           if (allGensResponse.data.success) {
             setAllGenerations(allGensResponse.data.generations);
           }
-          
+
           showAlert('Content regenerated successfully!', 'success');
         }
       } else {
@@ -803,10 +836,9 @@ const CardDetailView = () => {
 
         if (response.data.success) {
           const updatedGen = response.data.generation;
-          
+
           setCurrentGeneration(updatedGen);
-          
-          setAllGenerations(prevGens => 
+          setAllGenerations(prevGens =>
             prevGens.map(gen => ({
               ...gen,
               is_current: gen.id === updatedGen.id,
@@ -819,7 +851,7 @@ const CardDetailView = () => {
               } : {})
             }))
           );
-          
+
           showAlert('Content regenerated successfully!', 'success');
         }
       }
@@ -838,7 +870,7 @@ const CardDetailView = () => {
     setIsRegenerating(true);
     setRegeneratingGenerationId(generation.id);
     setShowTimelineModal(false);
-    
+
     setFileFields({});
     setFilePreviewUrls({});
     setDeletedImages({});
@@ -847,17 +879,17 @@ const CardDetailView = () => {
   const handleResetToNew = async () => {
     setIsRegenerating(false);
     setRegeneratingGenerationId(null);
-    
+
     setFileFields({});
     setFilePreviewUrls({});
     setDeletedImages({});
-    
+
     try {
       const currentGenResponse = await api.get(`/daily-card/cards/${cardId}/current-generation`);
       if (currentGenResponse.data.success && currentGenResponse.data.generation) {
         setCurrentGeneration(currentGenResponse.data.generation);
       }
-      
+
       const allGensResponse = await api.get(`/daily-card/cards/${cardId}/generations`);
       if (allGensResponse.data.success) {
         setAllGenerations(allGensResponse.data.generations);
@@ -876,7 +908,7 @@ const CardDetailView = () => {
     if (!dateString) return 'N/A';
     const date = new Date(dateString);
     if (isNaN(date.getTime())) return 'N/A';
-    
+
     return date.toLocaleString('en-US', {
       month: 'short',
       day: 'numeric',
@@ -895,7 +927,7 @@ const CardDetailView = () => {
   }
 
   const draftKey = `admin_card_draft_${cardId}`;
-  const hasDraft = localStorage.getItem(draftKey) !== null;
+  const hasDraft = !isRegenerating && localStorage.getItem(draftKey) !== null;
 
   return (
     <div className="min-h-screen bg-white p-6">
@@ -927,10 +959,13 @@ const CardDetailView = () => {
               </p>
             </div>
             <div className="flex gap-2 items-center flex-wrap">
-              <div className="flex items-center gap-2 px-3 py-2 bg-green-50 border border-green-200 rounded-lg">
-                <Users className="w-4 h-4 text-green-600" />
-                <span className="text-sm font-semibold text-green-700">{onlineCount} online</span>
-              </div>
+              {/* Only show online count in normal mode (not override) */}
+              {!isRegenerating && (
+                <div className="flex items-center gap-2 px-3 py-2 bg-green-50 border border-green-200 rounded-lg">
+                  <Users className="w-4 h-4 text-green-600" />
+                  <span className="text-sm font-semibold text-green-700">{onlineCount} online</span>
+                </div>
+              )}
 
               <button
                 onClick={() => setShowShareModal(true)}
@@ -940,6 +975,7 @@ const CardDetailView = () => {
                 Share
               </button>
 
+              {/* Only show clear draft button in normal mode */}
               {hasDraft && (
                 <button
                   onClick={handleClearDraft}
@@ -951,15 +987,19 @@ const CardDetailView = () => {
                 </button>
               )}
 
-              {(currentGeneration || Object.keys(fieldValues).length > 0) && (
-                <button
-                  onClick={handleRevertToOriginal}
-                  className="flex items-center gap-2 px-4 py-2.5 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors font-semibold shadow-sm"
-                >
-                  <RotateCcw className="w-4 h-4" />
-                  Revert to Original
-                </button>
-              )}
+              {/* Revert button - Always visible, but disabled in generate mode, enabled in override mode */}
+              <button
+                onClick={handleRevertToOriginal}
+                disabled={!isRegenerating}
+                className={`flex items-center gap-2 px-4 py-2.5 rounded-lg transition-colors font-semibold shadow-sm ${isRegenerating
+                    ? 'bg-orange-600 text-white hover:bg-orange-700 cursor-pointer'
+                    : 'bg-gray-300 text-gray-500 cursor-not-allowed opacity-60'
+                  }`}
+                title={!isRegenerating ? 'Only available in Override Mode' : 'Revert to original content'}
+              >
+                <RotateCcw className="w-4 h-4" />
+                Revert to Original
+              </button>
 
               {isRegenerating && (
                 <button
@@ -980,16 +1020,18 @@ const CardDetailView = () => {
             </div>
           </div>
 
+          {/* Show draft alert ONLY in normal mode */}
           {hasDraft && (
             <div className="mt-4 bg-amber-50 border border-amber-200 rounded-lg p-3 flex items-start gap-2">
               <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
               <p className="text-sm text-amber-900">
-                <strong>Unsaved draft loaded.</strong> Your changes are auto-saved locally. Generate content to save permanently.
+                <strong>Unsaved draft loaded. </strong> Your changes are auto-saved locally. Generate content to save permanently.
               </p>
             </div>
           )}
         </div>
 
+        {/* Override mode alert */}
         {isRegenerating && (
           <div className="mb-6 p-4 bg-amber-50 border-2 border-amber-200 rounded-lg">
             <div className="flex items-center justify-between">
@@ -997,6 +1039,9 @@ const CardDetailView = () => {
                 <p className="font-semibold text-amber-900">🔄 Override Mode Active</p>
                 <p className="text-sm text-amber-700">
                   You're editing version #{currentGeneration?.generation_number}
+                </p>
+                <p className="text-xs text-amber-600 mt-1">
+                  ⚠️ Sockets and draft auto-save disabled in this mode
                 </p>
               </div>
               <button
@@ -1018,11 +1063,10 @@ const CardDetailView = () => {
                   <button
                     key={style.value}
                     onClick={() => setSelectedStyle(style.value)}
-                    className={`p-4 rounded-lg border-2 text-left transition-all ${
-                      selectedStyle === style.value
-                        ? 'border-blue-600 bg-blue-50'
-                        : 'border-gray-200 hover:border-blue-300'
-                    }`}
+                    className={`p-4 rounded-lg border-2 text-left transition-all ${selectedStyle === style.value
+                      ? 'border-blue-600 bg-blue-50'
+                      : 'border-gray-200 hover:border-blue-300'
+                      }`}
                   >
                     <h3 className="font-bold text-gray-900 mb-1">{style.label}</h3>
                     <p className="text-sm text-gray-600">{style.description}</p>
@@ -1033,13 +1077,13 @@ const CardDetailView = () => {
 
             <div className="bg-white rounded-lg shadow-sm border-2 border-gray-200 p-6">
               <h2 className="text-xl font-bold text-gray-900 mb-4">
-                Input Fields 
+                Input Fields
                 {isRegenerating && <span className="text-sm text-amber-600 ml-2">(Override Mode)</span>}
               </h2>
               <div className="space-y-4">
                 {fieldMetadata.map((field) => {
                   const activeEditor = activeEditors[field.field_name];
-                  
+
                   return (
                     <div key={field.id}>
                       <label className="block text-sm font-semibold text-gray-700 mb-2">
@@ -1050,8 +1094,9 @@ const CardDetailView = () => {
                             (Max {getMaxFiles(field)} file{getMaxFiles(field) > 1 ? 's' : ''})
                           </span>
                         )}
-                        {activeEditor && (
-                          <span 
+                        {/* Only show active editor in normal mode */}
+                        {activeEditor && !isRegenerating && (
+                          <span
                             className="ml-2 px-2 py-1 text-xs font-bold rounded animate-pulse"
                             style={{
                               backgroundColor: activeEditor.color + '20',
@@ -1063,7 +1108,7 @@ const CardDetailView = () => {
                           </span>
                         )}
                       </label>
-                      
+
                       {field.field_type === 'file' ? (
                         <div>
                           <label className="flex items-center gap-2 px-4 py-2 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-blue-400 transition-colors">
@@ -1079,29 +1124,29 @@ const CardDetailView = () => {
                               className="hidden"
                             />
                           </label>
-                          
+
                           {(() => {
                             const fieldUrls = filePreviewUrls[field.field_name];
                             const fieldFiles = fileFields[field.field_name];
-                            
+
                             const urlsArray = Array.isArray(fieldUrls) ? fieldUrls : (fieldUrls ? [fieldUrls] : []);
                             const filesArray = Array.isArray(fieldFiles) ? fieldFiles : (fieldFiles ? [fieldFiles] : []);
-                            
+
                             const uploadedImagesData = currentGeneration?.uploaded_images || {};
                             const allSavedImages = typeof uploadedImagesData === 'object' && !Array.isArray(uploadedImagesData)
                               ? (uploadedImagesData[field.field_name] || [])
                               : [];
-                            
+
                             const deletedForThisField = deletedImages[field.field_name] || [];
                             const savedImages = allSavedImages.filter(img => !deletedForThisField.includes(img));
-                            
+
                             const hasContent = urlsArray.length > 0 || savedImages.length > 0;
-                            
+
                             return hasContent && (
                               <div className="mt-3 grid grid-cols-3 gap-2">
                                 {savedImages.map((imgPath, displayIndex) => {
                                   const originalIndex = allSavedImages.indexOf(imgPath);
-                                  
+
                                   return (
                                     <div key={`saved-${displayIndex}`} className="relative group">
                                       <img
@@ -1121,13 +1166,13 @@ const CardDetailView = () => {
                                       <div className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-50 text-white text-xs px-1 py-0.5 rounded-b-lg truncate">
                                         {imgPath.split('/').pop()}
                                       </div>
-                                      <div className="absolute top-1 left-1 px-1.5 py-0.5 bg-green-600 text-white text-xs rounded">
+                                      <div className="absolute top-1 left-1 px-1. 5 py-0.5 bg-green-600 text-white text-xs rounded">
                                         Current
                                       </div>
                                     </div>
                                   );
                                 })}
-                                
+
                                 {urlsArray.map((url, index) => (
                                   <div key={`new-${index}`} className="relative group">
                                     <img
@@ -1160,10 +1205,9 @@ const CardDetailView = () => {
                             onChange={(e) => handleFieldChange(field.field_name, e.target.value)}
                             placeholder={field.place_holder || ''}
                             rows={4}
-                            className={`w-full px-4 py-2.5 border-2 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all ${
-                              activeEditor ? 'border-4 animate-pulse' : 'border-gray-300'
-                            }`}
-                            style={activeEditor ? { borderColor: activeEditor.color } : {}}
+                            className={`w-full px-4 py-2.5 border-2 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all ${activeEditor && !isRegenerating ? 'border-4 animate-pulse' : 'border-gray-300'
+                              }`}
+                            style={activeEditor && !isRegenerating ? { borderColor: activeEditor.color } : {}}
                           />
                         </div>
                       ) : (
@@ -1173,10 +1217,9 @@ const CardDetailView = () => {
                             value={fieldValues[field.field_name] || ''}
                             onChange={(e) => handleFieldChange(field.field_name, e.target.value)}
                             placeholder={field.place_holder || ''}
-                            className={`w-full px-4 py-2.5 border-2 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all ${
-                              activeEditor ? 'border-4 animate-pulse' : 'border-gray-300'
-                            }`}
-                            style={activeEditor ? { borderColor: activeEditor.color } : {}}
+                            className={`w-full px-4 py-2.5 border-2 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all ${activeEditor && !isRegenerating ? 'border-4 animate-pulse' : 'border-gray-300'
+                              }`}
+                            style={activeEditor && !isRegenerating ? { borderColor: activeEditor.color } : {}}
                           />
                         </div>
                       )}
@@ -1227,11 +1270,11 @@ const CardDetailView = () => {
             </div>
           </div>
 
-          {/* ✅ Right sidebar - Current Output */}
+          {/* Right sidebar - Current Output */}
           <div className="lg:col-span-1">
             <div className="bg-white rounded-lg shadow-sm border-2 border-gray-200 p-6 sticky top-6">
               <h2 className="text-xl font-bold text-gray-900 mb-4">Current Output</h2>
-              
+
               {currentGeneration ? (
                 <div>
                   <div className="mb-4 pb-4 border-b border-gray-200">
@@ -1256,10 +1299,10 @@ const CardDetailView = () => {
                     const outputKeys = Object.keys(output).filter(
                       key => key !== 'generated_at' && key !== 'full_text' && key !== 'fallback'
                     );
-                    
+
                     return outputKeys.length > 0 && (
                       <div className="space-y-3 mb-4">
-                        <h3 className="font-semibold text-gray-900">AI Generated:</h3>
+                        <h3 className="font-semibold text-gray-900">AI Generated: </h3>
                         {outputKeys.map((key) => (
                           <div key={key} className="p-3 bg-green-50 rounded-lg border border-green-200">
                             <p className="text-xs font-semibold text-green-700 mb-1 capitalize">
@@ -1274,18 +1317,18 @@ const CardDetailView = () => {
 
                   {(() => {
                     const uploadedImagesData = currentGeneration.uploaded_images || {};
-                    
+
                     let allImages = [];
-                    
+
                     if (typeof uploadedImagesData === 'object' && !Array.isArray(uploadedImagesData)) {
-                      allImages = Object.entries(uploadedImagesData).flatMap(([fieldName, urls]) => 
+                      allImages = Object.entries(uploadedImagesData).flatMap(([fieldName, urls]) =>
                         (Array.isArray(urls) ? urls : []).map(url => ({ url, fieldName }))
                       );
-                    } 
+                    }
                     else if (Array.isArray(uploadedImagesData)) {
                       allImages = uploadedImagesData.map(url => ({ url, fieldName: 'uploaded' }));
                     }
-                    
+
                     return allImages.length > 0 && (
                       <div className="mb-4">
                         <h3 className="font-semibold text-gray-900 mb-2">Images ({allImages.length}):</h3>
@@ -1297,7 +1340,7 @@ const CardDetailView = () => {
                                 alt={`${item.fieldName} ${index + 1}`}
                                 className="w-full h-20 object-cover rounded-lg border border-gray-200"
                                 onError={(e) => {
-                                  e.target.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="100" height="100"%3E%3Crect fill="%23ddd" width="100" height="100"/%3E%3Ctext fill="%23999" x="50%25" y="50%25" text-anchor="middle" dy=".3em"%3ENo Image%3C/text%3E%3C/svg%3E';
+                                  e.target.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="100" height="100"%3E%3Crect fill="%23ddd" width="100" height="100"/%3E%3Ctext fill="%23999" x="50%25" y="50%25" text-anchor="middle" dy=". 3em"%3ENo Image%3C/text%3E%3C/svg%3E';
                                 }}
                               />
                               <div className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-60 text-white text-xs px-1 py-0.5 rounded-b-lg truncate">
@@ -1313,7 +1356,7 @@ const CardDetailView = () => {
                   {(() => {
                     const fieldVals = safeParseObject(currentGeneration.field_values);
                     const fieldKeys = Object.keys(fieldVals);
-                    
+
                     return fieldKeys.length > 0 && (
                       <div className="space-y-3">
                         <h3 className="font-semibold text-gray-900">Input Data:</h3>
@@ -1340,7 +1383,7 @@ const CardDetailView = () => {
           </div>
         </div>
 
-        {/* ✅ Share Modal */}
+        {/* Share Modal */}
         {showShareModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fadeIn">
             <div className="absolute inset-0 bg-black/20 backdrop-blur-sm" onClick={() => setShowShareModal(false)} />
@@ -1379,19 +1422,18 @@ const CardDetailView = () => {
                         placeholder="Type to search users..."
                         className="w-full pl-10 pr-4 py-2.5 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
                       />
-                      
+
                       {showUserDropdown && filteredUsers.length > 0 && (
                         <div className="absolute z-50 w-full mt-1 bg-white border-2 border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
                           {filteredUsers.map((user, index) => (
                             <button
                               key={user.id}
                               onClick={() => handleSelectUser(user)}
-                              className={`w-full text-left px-4 py-3 hover:bg-blue-50 transition-colors border-b border-gray-100 last:border-b-0 ${
-                                index === selectedUserIndex ? 'bg-blue-50' : ''
-                              }`}
+                              className={`w-full text-left px-4 py-3 hover:bg-blue-50 transition-colors border-b border-gray-100 last:border-b-0 ${index === selectedUserIndex ? 'bg-blue-50' : ''
+                                }`}
                             >
                               <div className="flex items-center gap-3">
-                                <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
+                                <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center shrink-0">
                                   <span className="text-blue-600 font-semibold text-sm">
                                     {user.name.charAt(0).toUpperCase()}
                                   </span>
@@ -1420,7 +1462,7 @@ const CardDetailView = () => {
                     <button
                       onClick={handleGrantAccess}
                       disabled={sharingLoading}
-                      className="px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-semibold disabled: opacity-50 disabled:cursor-not-allowed"
                     >
                       {sharingLoading ? (
                         <RefreshCw className="w-5 h-5 animate-spin" />
@@ -1452,7 +1494,7 @@ const CardDetailView = () => {
                           className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200 hover:border-blue-300 transition-colors"
                         >
                           <div className="flex items-center gap-3 flex-1 min-w-0">
-                            <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0">
+                            <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center shrink-0">
                               <span className="text-green-600 font-semibold text-sm">
                                 {permission.user_name.charAt(0).toUpperCase()}
                               </span>
@@ -1467,7 +1509,7 @@ const CardDetailView = () => {
                           </div>
                           <button
                             onClick={() => handleRevokeAccess(permission.user_id)}
-                            className="ml-3 p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors flex-shrink-0"
+                            className="ml-3 p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors shrink-0"
                             title="Revoke access"
                           >
                             <Trash2 className="w-4 h-4" />
@@ -1482,7 +1524,7 @@ const CardDetailView = () => {
               <div className="p-6 border-t-2 border-gray-200 bg-gray-50">
                 <button
                   onClick={() => setShowShareModal(false)}
-                  className="w-full px-4 py-2.5 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors font-semibold"
+                  className="w-full px-4 py-2. 5 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors font-semibold"
                 >
                   Close
                 </button>
@@ -1491,7 +1533,7 @@ const CardDetailView = () => {
           </div>
         )}
 
-        {/* ✅ Timeline Modal */}
+        {/* Timeline Modal */}
         {showTimelineModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fadeIn">
             <div className="absolute inset-0 bg-black/20 backdrop-blur-sm" onClick={() => setShowTimelineModal(false)} />
@@ -1500,7 +1542,7 @@ const CardDetailView = () => {
                 <h3 className="text-2xl font-bold text-gray-900">Generation Timeline</h3>
                 <button
                   onClick={() => setShowTimelineModal(false)}
-                  className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                  className="p-2 text-gray-400 hover:text-gray-600 hover: bg-gray-100 rounded-lg transition-colors"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -1518,11 +1560,10 @@ const CardDetailView = () => {
                     {allGenerations.map((gen) => (
                       <div
                         key={gen.id}
-                        className={`p-5 rounded-lg border-2 transition-all ${
-                          gen.is_current
-                            ? 'border-blue-400 bg-blue-50'
-                            : 'border-gray-200 bg-white hover:border-blue-300'
-                        }`}
+                        className={`p-5 rounded-lg border-2 transition-all ${gen.is_current
+                          ? 'border-blue-400 bg-blue-50'
+                          : 'border-gray-200 bg-white hover:border-blue-300'
+                          }`}
                       >
                         <div className="flex items-start justify-between mb-3">
                           <div className="flex items-center gap-2 flex-wrap">
@@ -1557,14 +1598,14 @@ const CardDetailView = () => {
                           const outputEntries = Object.entries(output)
                             .filter(([key]) => key !== 'generated_at' && key !== 'full_text' && key !== 'fallback')
                             .slice(0, 2);
-                          
+
                           return outputEntries.length > 0 && (
                             <div className="mb-3 p-3 bg-green-50 rounded-lg border border-green-200">
                               <p className="text-xs font-semibold text-green-700 mb-2">AI Output:</p>
                               <div className="space-y-1">
                                 {outputEntries.map(([key, value]) => (
                                   <p key={key} className="text-xs text-gray-700">
-                                    <span className="font-semibold capitalize">{key.replace(/_/g, ' ')}: </span>
+                                    <span className="font-semibold capitalize">{key.replace(/_/g, ' ')}:  </span>
                                     {String(value).substring(0, 100)}...
                                   </p>
                                 ))}
@@ -1576,7 +1617,7 @@ const CardDetailView = () => {
                         {(() => {
                           const fieldVals = safeParseObject(gen.field_values);
                           const fieldEntries = Object.entries(fieldVals).slice(0, 4);
-                          
+
                           return fieldEntries.length > 0 && (
                             <div className="grid grid-cols-2 gap-2 mb-3">
                               {fieldEntries.map(([key, value]) => (
@@ -1596,9 +1637,9 @@ const CardDetailView = () => {
                           const allImages = typeof uploadedImagesData === 'object' && !Array.isArray(uploadedImagesData)
                             ? Object.values(uploadedImagesData).flat()
                             : Array.isArray(uploadedImagesData)
-                            ? uploadedImagesData
-                            : [];
-                          
+                              ? uploadedImagesData
+                              : [];
+
                           return allImages.length > 0 && (
                             <div className="mt-3 flex gap-2">
                               {allImages.slice(0, 3).map((imgPath, idx) => (
