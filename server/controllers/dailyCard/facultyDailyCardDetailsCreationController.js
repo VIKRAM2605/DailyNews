@@ -131,7 +131,7 @@ export const createFacultyCard = async (req, res) => {
     const { groupId } = req.params;
     const { card_title } = req.body;
     const userId = req.user?.id;
-
+    console.log('🆕 Create card request for group:', groupId, 'by user:', userId);
     if (!card_title?.trim()) {
       return res.status(400).json({
         success: false,

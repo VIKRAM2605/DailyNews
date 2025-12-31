@@ -110,18 +110,23 @@ const FacultyCardContent = () => {
     localStorage.setItem(draftKey, JSON.stringify(draft));
   }, [formData, cardId]);
 
-  // Socket.IO initialization
-  useEffect(() => {
-    console.log('🔌 Faculty: Initializing socket...');
+// Socket.IO initialization with reconnection handling
+useEffect(() => {
+  console.log('🔌 Faculty: Initializing socket.. .');
 
-    const socket = socketService.connect();
+  const socket = socketService.connect();
+  
+  // Setup all socket listeners
+  const setupSocketListeners = () => {
+    console.log('🔧 Setting up socket listeners...');
+    
     socketService.joinCard(cardId, userId, userName, userEmail);
 
     socketService.onRoomUserCount(({ count }) => {
       setOnlineCount(count);
     });
 
-    socketService.onFieldUpdated(({ fieldName, value, userId: editorId, userName: updaterName, userEmail: updaterEmail }) => {
+    socketService.onFieldUpdated(({ fieldName, value, userId:  editorId, userName: updaterName, userEmail: updaterEmail }) => {
       setFormData(prev => ({ ...prev, [fieldName]: value }));
 
       const editorColor = getUserColor(editorId);
@@ -147,19 +152,48 @@ const FacultyCardContent = () => {
       }, 3000);
     });
 
-    socketService.onUserJoined(({ userName: newUser, count }) => {
+    socketService.onUserJoined(({ userName:  newUser, count }) => {
+      console.log('👋 User joined:', newUser, 'Total:', count);
       setOnlineCount(count);
     });
 
     socketService.onUserLeft(({ count }) => {
+      console.log('👋 User left.  Total:', count);
       setOnlineCount(count);
     });
+  };
 
-    return () => {
-      socketService.removeAllListeners();
-      socketService.disconnect();
-    };
-  }, [cardId, userId, userName, userEmail]);
+  // Initial setup
+  setupSocketListeners();
+
+  // Handle reconnection
+  const handleReconnect = () => {
+    console.log('🔄 Socket reconnected!  Re-establishing listeners...');
+    setupSocketListeners();
+  };
+
+  // Listen for reconnection events
+  socket. on('connect', handleReconnect);
+  socket.on('reconnect', handleReconnect);
+
+  // Handle disconnect
+  socket.on('disconnect', (reason) => {
+    console.log('⚠️ Socket disconnected:', reason);
+    if (reason === 'io server disconnect') {
+      // Server forcefully disconnected, try to reconnect
+      socket.connect();
+    }
+  });
+
+  return () => {
+    console.log('🧹 Cleaning up socket listeners...');
+    socket.off('connect', handleReconnect);
+    socket.off('reconnect', handleReconnect);
+    socket.off('disconnect');
+    socketService.removeAllListeners();
+    socketService.disconnect();
+  };
+}, [cardId, userId, userName, userEmail]);
 
   const fetchCardDetails = async () => {
     setLoading(true);
@@ -429,7 +463,7 @@ const FacultyCardContent = () => {
         position="top"
       />
 
-      <div className="max-w-4xl mx-auto">
+      <div className="mx-auto">
         <div className="mb-8">
           <button
             onClick={() => navigate(`/faculty/daily-cards/${groupId}`)}

@@ -180,19 +180,24 @@ const CardDetailView = () => {
     localStorage.setItem(draftKey, JSON.stringify(draft));
   }, [fieldValues, selectedStyle, cardId, isRegenerating]);
 
-  // Socket. IO initialization - DISABLED in override mode
-  useEffect(() => {
-    // Disable sockets in override mode
-    if (isRegenerating) {
-      console.log('🔌 Sockets disabled in override mode');
-      socketService.removeAllListeners();
-      socketService.disconnect();
-      return;
-    }
+// Socket.IO initialization - DISABLED in override mode
+useEffect(() => {
+  // Disable sockets in override mode
+  if (isRegenerating) {
+    console.log('🔌 Sockets disabled in override mode');
+    socketService. removeAllListeners();
+    socketService.disconnect();
+    return;
+  }
 
-    console.log('🔌 Admin:  Initializing socket.. .');
+  console.log('🔌 Admin:  Initializing socket...');
 
-    const socket = socketService.connect();
+  const socket = socketService.connect();
+  
+  // Setup all socket listeners
+  const setupSocketListeners = () => {
+    console.log('🔧 Setting up socket listeners...');
+    
     socketService.joinCard(cardId, userId, userName, userEmail);
 
     socketService.onRoomUserCount(({ count }) => {
@@ -226,18 +231,47 @@ const CardDetailView = () => {
     });
 
     socketService.onUserJoined(({ userName: newUser, count }) => {
+      console.log('👋 User joined:', newUser, 'Total:', count);
       setOnlineCount(count);
     });
 
     socketService.onUserLeft(({ count }) => {
+      console. log('👋 User left.  Total:', count);
       setOnlineCount(count);
     });
+  };
 
-    return () => {
-      socketService.removeAllListeners();
-      socketService.disconnect();
-    };
-  }, [cardId, userId, userName, userEmail, isRegenerating]);
+  // Initial setup
+  setupSocketListeners();
+
+  // Handle reconnection
+  const handleReconnect = () => {
+    console.log('🔄 Socket reconnected!  Re-establishing listeners...');
+    setupSocketListeners();
+  };
+
+  // Listen for reconnection events
+  socket.on('connect', handleReconnect);
+  socket.on('reconnect', handleReconnect);
+
+  // Handle disconnect
+  socket.on('disconnect', (reason) => {
+    console.log('⚠️ Socket disconnected:', reason);
+    if (reason === 'io server disconnect') {
+      // Server forcefully disconnected, try to reconnect
+      socket.connect();
+    }
+  });
+
+  return () => {
+    console.log('🧹 Cleaning up socket listeners.. .');
+    socket.off('connect', handleReconnect);
+    socket.off('reconnect', handleReconnect);
+    socket.off('disconnect');
+    socketService.removeAllListeners();
+    socketService.disconnect();
+  };
+}, [cardId, userId, userName, userEmail, isRegenerating]);
 
   useEffect(() => {
     return () => {

@@ -2,8 +2,6 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 
 const Header = () => {
-    const navigate = useNavigate();
-
     // Get user from localStorage
     const user = JSON.parse(localStorage.getItem('user') || '{}');
     const userRole = user?.role || 'faculty';
@@ -21,10 +19,6 @@ const Header = () => {
     // Get profile image or use initials
     const profileImage = user?.picture || user?.avatar || null;
 
-    const handleProfileClick = () => {
-        navigate(userRole === 'admin' ? '/admin/settings' : '/faculty/settings');
-    };
-
     return (
         <header className="fixed top-0 right-0 left-16 h-16 bg-white border-b border-gray-200 shadow-sm z-30 flex items-center justify-between px-6">
             {/* Left - Brand Name */}
@@ -37,7 +31,6 @@ const Header = () => {
 
             {/* Right - Profile */}
             <button
-                onClick={handleProfileClick}
                 className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-50 transition-colors duration-200"
             >
                 {/* Profile Image or Initials */}
