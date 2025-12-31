@@ -194,8 +194,8 @@ export const checkCardAccess = async (req, res) => {
       });
     }
 
-    const isOwner = card[0].created_by === userId;
-
+    const isOwner = card[0].created_by == userId;
+    console.log('🔍 Checking access for user:', userId, 'to card:', cardId, 'Is owner:', isOwner,card[0].created_by);
     if (isOwner) {
       return res.json({
         success: true,
