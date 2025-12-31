@@ -26,7 +26,7 @@ const storage = multer.diskStorage({
 
 const upload = multer({
   storage: storage,
-  limits: { 
+  limits: {
     fileSize: 10 * 1024 * 1024,
     files: 20
   },
@@ -34,7 +34,7 @@ const upload = multer({
     const allowedTypes = /jpeg|jpg|png|gif|webp/;
     const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
     const mimetype = allowedTypes.test(file.mimetype);
-    
+
     if (mimetype && extname) {
       return cb(null, true);
     } else {
@@ -140,14 +140,14 @@ export const getCard = async (req, res) => {
 
     const currentGen = currentGeneration[0] ? {
       ...currentGeneration[0],
-      field_values: typeof currentGeneration[0].field_values === 'string' 
-        ? JSON.parse(currentGeneration[0].field_values) 
+      field_values: typeof currentGeneration[0].field_values === 'string'
+        ? JSON.parse(currentGeneration[0].field_values)
         : currentGeneration[0].field_values,
-      generated_output: typeof currentGeneration[0].generated_output === 'string' 
-        ? JSON.parse(currentGeneration[0].generated_output) 
+      generated_output: typeof currentGeneration[0].generated_output === 'string'
+        ? JSON.parse(currentGeneration[0].generated_output)
         : currentGeneration[0].generated_output,
-      uploaded_images: typeof currentGeneration[0].uploaded_images === 'string' 
-        ? JSON.parse(currentGeneration[0].uploaded_images) 
+      uploaded_images: typeof currentGeneration[0].uploaded_images === 'string'
+        ? JSON.parse(currentGeneration[0].uploaded_images)
         : currentGeneration[0].uploaded_images
     } : null;
 
@@ -190,6 +190,8 @@ export const getFieldMetadata = async (req, res) => {
 };
 
 // ✅ Generate content - saves field_values to cards.card_content on FIRST generation ONLY for creator's cards
+// ✅ Generate content - saves field_values to cards.card_content on FIRST generation ONLY for creator's cards
+// Admin can update cards.card_content: ALWAYS if shared/collab, ONCE if private
 export const generateContent = async (req, res) => {
   console.log('\n========== 🚀 GENERATE CONTENT REQUEST ==========');
   try {
@@ -223,6 +225,22 @@ export const generateContent = async (req, res) => {
     console.log('  - Current user:', userId);
     console.log('  - Is creator?', isCreator);
 
+    // ✅ Admin + sharing/private detection
+    const isAdmin = req.user?.role === 'admin' || req.user?.is_admin === true;
+
+    // If there is at least one permission row for this card, treat it as "shared/collab"
+    const permissionRows = await db`
+      SELECT 1
+      FROM card_permissions
+      WHERE card_id = ${cardId}
+      LIMIT 1
+    `;
+    const isSharedCard = permissionRows.length > 0;
+
+    console.log('👑 Admin check:');
+    console.log('  - Is admin?', isAdmin);
+    console.log('  - Is shared card?', isSharedCard);
+
     // Parse JSON strings
     if (typeof field_values === 'string') {
       field_values = JSON.parse(field_values);
@@ -236,8 +254,8 @@ export const generateContent = async (req, res) => {
     let existingImagesObj = {};
     if (existing_images) {
       try {
-        existingImagesObj = typeof existing_images === 'string' 
-          ? JSON.parse(existing_images) 
+        existingImagesObj = typeof existing_images === 'string'
+          ? JSON.parse(existing_images)
           : existing_images;
         console.log('  ✅ Received pre-filtered existing_images');
       } catch (e) {
@@ -248,13 +266,13 @@ export const generateContent = async (req, res) => {
 
     // Process uploaded files
     const newFilesByField = {};
-    
+
     if (req.files && req.files.length > 0) {
       console.log('\n📸 Processing uploaded files...');
       req.files.forEach(file => {
         const fieldName = file.fieldname;
         const fileUrl = `/uploads/card-images/${file.filename}`;
-        
+
         if (!newFilesByField[fieldName]) {
           newFilesByField[fieldName] = [];
         }
@@ -264,7 +282,7 @@ export const generateContent = async (req, res) => {
 
     // SIMPLE MERGE: existing + new
     const finalImages = { ...existingImagesObj };
-    
+
     if (Object.keys(newFilesByField).length > 0) {
       console.log('\n➕ Appending new images...');
       Object.keys(newFilesByField).forEach(fieldName => {
@@ -282,21 +300,33 @@ export const generateContent = async (req, res) => {
       FROM card_generations
       WHERE card_id = ${cardId}
     `;
-    
+
     const nextGenNumber = (lastGen[0]?.max_num || 0) + 1;
     const isFirstGeneration = nextGenNumber === 1;
 
     console.log(`\n📊 Generation number: ${nextGenNumber}`);
-    
-    // ✅ Only populate card_content if FIRST generation AND user is the creator
-    const shouldPopulateCardContent = isFirstGeneration && isCreator;
-    
+
+    // ✅ Populate rules:
+    // - Creator: only on FIRST generation (existing behavior)
+    // - Admin: if shared → always; if private → only on FIRST generation
+    const shouldPopulateCardContent =
+      (isCreator && isFirstGeneration) ||
+      (isAdmin && (isSharedCard || isFirstGeneration));
+
     if (shouldPopulateCardContent) {
-      console.log('✅ FIRST generation + User is CREATOR → Will populate cards.card_content');
-    } else if (isFirstGeneration && !isCreator) {
-      console.log('⚠️  FIRST generation but user is NOT creator → Will NOT populate cards.card_content');
+      if (isCreator && isFirstGeneration) {
+        console.log('✅ FIRST generation + User is CREATOR → Will populate cards.card_content');
+      } else if (isAdmin && isSharedCard) {
+        console.log('✅ Admin + SHARED card → Will populate cards.card_content');
+      } else if (isAdmin && isFirstGeneration) {
+        console.log('✅ Admin + PRIVATE card + FIRST generation → Will populate cards.card_content');
+      }
     } else {
-      console.log('⏭️  Not first generation → Skipping cards.card_content update');
+      if (isAdmin && !isSharedCard && !isFirstGeneration) {
+        console.log('⚠️  Admin + PRIVATE card + NOT first generation → Will NOT populate cards.card_content');
+      } else {
+        console.log('⏭️  Skipping cards.card_content update');
+      }
     }
 
     // Set all previous generations to not current
@@ -329,19 +359,25 @@ export const generateContent = async (req, res) => {
       RETURNING *
     `;
 
-    // ✅ ONLY populate cards.card_content if FIRST generation AND user is the creator
+    // ✅ Populate cards.card_content based on creator/admin rules
+    // ✅ Populate cards.card_content based on creator/admin rules
     if (shouldPopulateCardContent) {
-      console.log('\n📝 Populating cards.card_content with field_values (creator only)...');
+      console.log('\n📝 Populating cards.card_content with field_values...');
       console.log('Field values to save:', field_values);
-      
+      console.log('Updated by user ID:', userId);
+      console.log('Updated by role:', req.user?.role);
+
       await db`
-        UPDATE cards
-        SET card_content = ${JSON.stringify(field_values)}::jsonb,
-            updated_at = CURRENT_TIMESTAMP
-        WHERE id = ${cardId}
-      `;
-      
+    UPDATE cards
+    SET card_content = ${JSON.stringify(field_values)}::jsonb,
+        updated_at = CURRENT_TIMESTAMP,
+        updated_by = ${userId},
+        last_updated_by_role = ${req.user?.role || 'admin'}
+    WHERE id = ${cardId}
+  `;
+
       console.log('✅ cards.card_content populated successfully');
+      console.log('✅ Tracking:  updated_by =', userId, ', role =', req.user?.role);
     }
 
     console.log('\n✅✅✅ Generation saved successfully!');
@@ -349,19 +385,21 @@ export const generateContent = async (req, res) => {
     console.log('  Generation Number:', newGen[0].generation_number);
     console.log('  Is First:', isFirstGeneration);
     console.log('  Is Creator:', isCreator);
+    console.log('  Is Admin:', isAdmin);
+    console.log('  Is Shared Card:', isSharedCard);
     console.log('  Card content populated:', shouldPopulateCardContent);
     console.log('========================================\n');
 
     const generationToSend = {
       ...newGen[0],
-      field_values: typeof newGen[0].field_values === 'string' 
-        ? JSON.parse(newGen[0].field_values) 
+      field_values: typeof newGen[0].field_values === 'string'
+        ? JSON.parse(newGen[0].field_values)
         : newGen[0].field_values,
-      generated_output: typeof newGen[0].generated_output === 'string' 
-        ? JSON.parse(newGen[0].generated_output) 
+      generated_output: typeof newGen[0].generated_output === 'string'
+        ? JSON.parse(newGen[0].generated_output)
         : newGen[0].generated_output,
-      uploaded_images: typeof newGen[0].uploaded_images === 'string' 
-        ? JSON.parse(newGen[0].uploaded_images) 
+      uploaded_images: typeof newGen[0].uploaded_images === 'string'
+        ? JSON.parse(newGen[0].uploaded_images)
         : newGen[0].uploaded_images
     };
 
@@ -376,7 +414,7 @@ export const generateContent = async (req, res) => {
     console.error('\n❌❌❌ GENERATE CONTENT ERROR ❌❌❌');
     console.error('Error:', error);
     console.error('========================================\n');
-    
+
     if (req.files && req.files.length > 0) {
       req.files.forEach(file => {
         const filePath = path.join(uploadDir, file.filename);
@@ -385,13 +423,14 @@ export const generateContent = async (req, res) => {
         }
       });
     }
-    
+
     res.status(500).json({
       success: false,
       error: error.message || 'Failed to save content'
     });
   }
 };
+
 
 // Update/Override existing generation (TEXT ONLY - preserves images)
 export const updateGeneration = async (req, res) => {
@@ -439,14 +478,14 @@ export const updateGeneration = async (req, res) => {
 
     const generationToSend = {
       ...updated[0],
-      field_values: typeof updated[0].field_values === 'string' 
-        ? JSON.parse(updated[0].field_values) 
+      field_values: typeof updated[0].field_values === 'string'
+        ? JSON.parse(updated[0].field_values)
         : updated[0].field_values,
-      generated_output: typeof updated[0].generated_output === 'string' 
-        ? JSON.parse(updated[0].generated_output) 
+      generated_output: typeof updated[0].generated_output === 'string'
+        ? JSON.parse(updated[0].generated_output)
         : updated[0].generated_output,
-      uploaded_images: typeof updated[0].uploaded_images === 'string' 
-        ? JSON.parse(updated[0].uploaded_images) 
+      uploaded_images: typeof updated[0].uploaded_images === 'string'
+        ? JSON.parse(updated[0].uploaded_images)
         : updated[0].uploaded_images
     };
 
@@ -459,7 +498,7 @@ export const updateGeneration = async (req, res) => {
     console.error('\n❌❌❌ UPDATE GENERATION ERROR ❌❌❌');
     console.error('Error:', error);
     console.error('========================================\n');
-    
+
     res.status(500).json({
       success: false,
       error: 'Failed to update generation'
@@ -542,14 +581,14 @@ export const updateGenerationWithImages = async (req, res) => {
 
     const generationToSend = {
       ...updated[0],
-      field_values: typeof updated[0].field_values === 'string' 
-        ? JSON.parse(updated[0].field_values) 
+      field_values: typeof updated[0].field_values === 'string'
+        ? JSON.parse(updated[0].field_values)
         : updated[0].field_values,
-      generated_output: typeof updated[0].generated_output === 'string' 
-        ? JSON.parse(updated[0].generated_output) 
+      generated_output: typeof updated[0].generated_output === 'string'
+        ? JSON.parse(updated[0].generated_output)
         : updated[0].generated_output,
-      uploaded_images: typeof updated[0].uploaded_images === 'string' 
-        ? JSON.parse(updated[0].uploaded_images) 
+      uploaded_images: typeof updated[0].uploaded_images === 'string'
+        ? JSON.parse(updated[0].uploaded_images)
         : updated[0].uploaded_images
     };
 
@@ -561,7 +600,7 @@ export const updateGenerationWithImages = async (req, res) => {
   } catch (error) {
     console.error('\n❌ UPDATE WITH IMAGES ERROR:', error);
     console.error('========================================\n');
-    
+
     if (req.files && req.files.length > 0) {
       req.files.forEach(file => {
         const filePath = path.join(uploadDir, file.filename);
@@ -570,7 +609,7 @@ export const updateGenerationWithImages = async (req, res) => {
         }
       });
     }
-    
+
     res.status(500).json({
       success: false,
       error: 'Failed to update generation'
@@ -616,7 +655,7 @@ export const regenerateContent = async (req, res) => {
       FROM card_generations
       WHERE card_id = ${cardId}
     `;
-    
+
     const nextGenNumber = (lastGen[0]?.max_num || 0) + 1;
 
     // Set all previous generations to not current
@@ -654,14 +693,14 @@ export const regenerateContent = async (req, res) => {
 
     const generationToSend = {
       ...newGen[0],
-      field_values: typeof newGen[0].field_values === 'string' 
-        ? JSON.parse(newGen[0].field_values) 
+      field_values: typeof newGen[0].field_values === 'string'
+        ? JSON.parse(newGen[0].field_values)
         : newGen[0].field_values,
-      generated_output: typeof newGen[0].generated_output === 'string' 
-        ? JSON.parse(newGen[0].generated_output) 
+      generated_output: typeof newGen[0].generated_output === 'string'
+        ? JSON.parse(newGen[0].generated_output)
         : newGen[0].generated_output,
-      uploaded_images: typeof newGen[0].uploaded_images === 'string' 
-        ? JSON.parse(newGen[0].uploaded_images) 
+      uploaded_images: typeof newGen[0].uploaded_images === 'string'
+        ? JSON.parse(newGen[0].uploaded_images)
         : newGen[0].uploaded_images
     };
 
@@ -674,7 +713,7 @@ export const regenerateContent = async (req, res) => {
     console.error('\n❌❌❌ REGENERATE CONTENT ERROR ❌❌❌');
     console.error('Error:', error);
     console.error('========================================\n');
-    
+
     res.status(500).json({
       success: false,
       error: 'Failed to save regenerated content'
@@ -692,20 +731,20 @@ export const getCurrentGeneration = async (req, res) => {
       WHERE card_id = ${cardId} AND is_current = true
       LIMIT 1
     `;
-    
+
     const generationToSend = generation[0] ? {
       ...generation[0],
-      field_values: typeof generation[0].field_values === 'string' 
-        ? JSON.parse(generation[0].field_values) 
+      field_values: typeof generation[0].field_values === 'string'
+        ? JSON.parse(generation[0].field_values)
         : generation[0].field_values,
-      generated_output: typeof generation[0].generated_output === 'string' 
-        ? JSON.parse(generation[0].generated_output) 
+      generated_output: typeof generation[0].generated_output === 'string'
+        ? JSON.parse(generation[0].generated_output)
         : generation[0].generated_output,
-      uploaded_images: typeof generation[0].uploaded_images === 'string' 
-        ? JSON.parse(generation[0].uploaded_images) 
+      uploaded_images: typeof generation[0].uploaded_images === 'string'
+        ? JSON.parse(generation[0].uploaded_images)
         : generation[0].uploaded_images
     } : null;
-    
+
     res.json({
       success: true,
       generation: generationToSend
@@ -729,20 +768,20 @@ export const getAllGenerations = async (req, res) => {
       WHERE card_id = ${cardId}
       ORDER BY generation_number DESC
     `;
-    
+
     const generationsToSend = generations.map(gen => ({
       ...gen,
-      field_values: typeof gen.field_values === 'string' 
-        ? JSON.parse(gen.field_values) 
+      field_values: typeof gen.field_values === 'string'
+        ? JSON.parse(gen.field_values)
         : gen.field_values,
-      generated_output: typeof gen.generated_output === 'string' 
-        ? JSON.parse(gen.generated_output) 
+      generated_output: typeof gen.generated_output === 'string'
+        ? JSON.parse(gen.generated_output)
         : gen.generated_output,
-      uploaded_images: typeof gen.uploaded_images === 'string' 
-        ? JSON.parse(gen.uploaded_images) 
+      uploaded_images: typeof gen.uploaded_images === 'string'
+        ? JSON.parse(gen.uploaded_images)
         : gen.uploaded_images
     }));
-    
+
     res.json({
       success: true,
       generations: generationsToSend
