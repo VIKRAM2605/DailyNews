@@ -60,7 +60,7 @@ const Header = () => {
         </button>
 
         {/* Brand Name */}
-        <h1 className="text-2xl md:text-3xl font-bold text-slate-900">
+        <h1 className="text-2xl md:text-3xl font-bold text-slate-900 select-none">
           DailyNews<span className="text-blue-500">.</span>
         </h1>
       </div>
@@ -77,7 +77,7 @@ const Header = () => {
             className="w-9 h-9 rounded-full object-cover border-2 border-gray-200"
           />
         ) : (
-          <div className="w-9 h-9 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-white font-semibold text-sm border-2 border-gray-200">
+          <div className="w-9 h-9 rounded-full bg-linear-to-br from-blue-500 to-blue-600 flex items-center justify-center text-white font-semibold text-sm border-2 border-gray-200">
             {getInitials(user?.username || user?.name)}
           </div>
         )}
