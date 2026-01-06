@@ -39,8 +39,7 @@ function AppLayout() {
       {shouldShowNavigation && <Navbar />}
 
       {/* Main Content Area */}
-      <div className={`flex-1 flex flex-col ${shouldShowNavigation ? 'ml-16' : ''}`}>
-        {/* Header */}
+      <div className={`flex-1 flex flex-col ${shouldShowNavigation ? 'ml-0 md:ml-16' : ''}`}>        {/* Header */}
         {shouldShowNavigation && <Header />}
 
         {/* Main Content with proper spacing */}
